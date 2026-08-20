@@ -1,7 +1,7 @@
 [project]
 name = "autosignly"
-version = "0.1.0.dev0"
 description = "Python client for the Autosignly API - eIDAS electronic signatures and document workflows"
+dynamic = ["version"]
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -28,6 +28,9 @@ dev = ["pytest>=8"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/autosignly/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autosignly"]
