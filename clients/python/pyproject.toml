@@ -1,0 +1,33 @@
+[project]
+name = "autosignly"
+version = "0.1.0.dev0"
+description = "Python client for the Autosignly API - eIDAS electronic signatures and document workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "16it" }]
+keywords = ["eidas", "electronic-signature", "esignature", "pdf", "pades", "autosignly"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["httpx>=0.27,<1"]
+
+[project.urls]
+Homepage = "https://autosignly.eu"
+Documentation = "https://docs.16it.eu/docs/intro/"
+Source = "https://github.com/16it-pl/autosignly-sdk"
+Issues = "https://github.com/16it-pl/autosignly-sdk/issues"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autosignly"]

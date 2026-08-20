@@ -28,3 +28,6 @@ __pycache__/
 *.py[cod]
 .venv/
 *.egg-info/
+
+# uv lock is not versioned for a library - consumers resolve their own dependencies
+uv.lock
