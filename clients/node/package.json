@@ -1,0 +1,54 @@
+{
+  "name": "@16it/autosignly",
+  "version": "0.1.0-dev.0",
+  "description": "Node.js client for the Autosignly API \u2014 send documents for eIDAS signature and verify webhook deliveries.",
+  "keywords": [
+    "autosignly",
+    "eidas",
+    "electronic-signature",
+    "pades",
+    "webhooks",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "default": "./dist/webhooks.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/16it-pl/autosignly-sdk.git",
+    "directory": "clients/node"
+  },
+  "homepage": "https://autosignly.eu",
+  "bugs": "https://github.com/16it-pl/autosignly-sdk/issues",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

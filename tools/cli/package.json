@@ -1,0 +1,45 @@
+{
+  "name": "autosignly",
+  "version": "0.1.0-dev.0",
+  "description": "Command line tool for Autosignly - forward webhooks to localhost while you develop",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "autosignly": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "autosignly",
+    "webhooks",
+    "eidas",
+    "electronic-signature",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/16it-pl/autosignly-sdk.git",
+    "directory": "tools/cli"
+  },
+  "homepage": "https://autosignly.eu",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  }
+}

@@ -26,6 +26,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    Credentials,
     Document,
     DocumentStatus,
     DocumentSummary,
@@ -53,6 +54,7 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "ValidationError",
+    "Credentials",
     "Document",
     "DocumentStatus",
     "DocumentSummary",

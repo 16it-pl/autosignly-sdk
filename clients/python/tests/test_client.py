@@ -28,6 +28,30 @@ def build_client(handler, **kwargs):
     )
 
 
+def test_describe_credentials_reports_the_environment():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "valid": True,
+                "companyId": "co-1",
+                "environmentId": "env-1",
+                "environmentType": "SANDBOX",
+            },
+        )
+
+    with build_client(handler) as client:
+        credentials = client.describe_credentials()
+
+    assert seen["url"] == "https://api.test/api/publics/v1/credentials"
+    assert credentials.valid is True
+    assert credentials.company_id == "co-1"
+    assert credentials.environment_type == "SANDBOX"
+
+
 def test_sends_credentials_as_headers():
     seen = {}
 

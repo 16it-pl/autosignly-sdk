@@ -56,6 +56,29 @@ class SigningStatus:
 
 
 @dataclass(slots=True)
+class Credentials:
+    """Which company and environment a key and secret pair resolves to.
+
+    Every environment — production and each sandbox — has its own pair, so this
+    is how a caller confirms which data a key will touch before using it.
+    """
+
+    valid: bool
+    company_id: str | None = None
+    environment_id: str | None = None
+    environment_type: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "Credentials":
+        return cls(
+            valid=bool(payload.get("valid", False)),
+            company_id=payload.get("companyId"),
+            environment_id=payload.get("environmentId"),
+            environment_type=payload.get("environmentType"),
+        )
+
+
+@dataclass(slots=True)
 class Signer:
     """A person asked to sign a document."""
 

@@ -77,14 +77,25 @@ added to the company tag pool.
 
 ## Verifying webhooks
 
-Autosignly signs every webhook delivery. Check the signature against the raw request body, before
-parsing it - re-serialising the JSON changes the bytes and the signature will not match.
+Autosignly signs every delivery. Check the signature against the raw request body, before parsing
+it - re-serialising the JSON changes the bytes and the signature will not match.
 
 ```python
 from autosignly import webhooks
 
-webhooks.verify(request.body, request.headers["X-Webhook-Signature"], webhook_key)
+webhooks.verify(
+    request.body,
+    request.headers["X-Webhook-Signature"],
+    webhook_key,
+    request.headers["X-Webhook-Timestamp"],
+)
 ```
+
+The signature covers the timestamp as well as the body, and a delivery older than five minutes is
+rejected even when its signature matches, so a captured request cannot be replayed later.
+
+While a webhook key is being rotated a delivery carries several signatures; it is accepted when any
+of them matches, so rotation needs no change on your side.
 
 `verify` raises `InvalidSignatureError` on a mismatch; `webhooks.is_valid(...)` returns a boolean
 instead.

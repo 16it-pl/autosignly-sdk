@@ -13,6 +13,7 @@ import httpx
 from . import errors
 from ._version import __version__
 from .models import (
+    Credentials,
     Document,
     DocumentSummary,
     Page,
@@ -87,6 +88,15 @@ class AutosignlyClient:
         payload = self._request("GET", "/api-key")
         return bool(payload.get("valid", False))
 
+    def describe_credentials(self) -> Credentials:
+        """Report which company and environment this key and secret resolve to.
+
+        Useful before a first call: it says whether the pair points at
+        production or at a sandbox, without touching any document.
+        """
+        payload = self._request("GET", "/credentials")
+        return Credentials.from_payload(payload)
+
     # -- documents -----------------------------------------------------------
 
     def list_documents(
@@ -158,6 +168,7 @@ class AutosignlyClient:
         *,
         signers: Sequence[Signer] | None = None,
         signature_type: str | None = None,
+        signature_mode: str | None = None,
         verification_method: str | None = None,
         initiator_email: str | None = None,
         initiator_locale: str | None = None,
@@ -173,6 +184,8 @@ class AutosignlyClient:
             body["signers"] = [signer.to_payload() for signer in signers]
         if signature_type:
             body["signatureType"] = signature_type
+        if signature_mode:
+            body["signatureMode"] = signature_mode
         if verification_method:
             body["verificationMethod"] = verification_method
         if initiator_email:
@@ -191,6 +204,7 @@ class AutosignlyClient:
         document_name: str,
         signers: Sequence[Signer],
         signature_type: str | None = None,
+        signature_mode: str | None = None,
         verification_method: str | None = None,
         initiator_email: str | None = None,
         initiator_locale: str | None = None,
@@ -207,6 +221,8 @@ class AutosignlyClient:
         }
         if signature_type:
             request["signatureType"] = signature_type
+        if signature_mode:
+            request["signatureMode"] = signature_mode
         if verification_method:
             request["verificationMethod"] = verification_method
         if initiator_email:
