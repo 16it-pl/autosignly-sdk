@@ -1,7 +1,7 @@
 {
   "name": "@16it/autosignly",
   "version": "0.1.0-dev.0",
-  "description": "Node.js client for the Autosignly API \u2014 send documents for eIDAS signature and verify webhook deliveries.",
+  "description": "Node.js client for the Autosignly API — send documents for eIDAS signature and verify webhook deliveries.",
   "keywords": [
     "autosignly",
     "eidas",
@@ -46,7 +46,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "yaml": "^2.9.0"
   },
   "publishConfig": {
     "access": "public"

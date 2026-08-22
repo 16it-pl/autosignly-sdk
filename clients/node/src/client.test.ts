@@ -69,14 +69,14 @@ test("describeCredentials reports the environment", async () => {
 test("listDocuments parses the page and sends the filters", async () => {
   const { client, calls } = buildClient(() =>
     json({
-      content: [{ id: "d-1", documentName: "Umowa", status: "SIGNED", tags: [{ id: "t", name: "x" }] }],
+      content: [{ id: "d-1", name: "Umowa", status: "SIGNED", tags: [{ id: "t", name: "x" }] }],
       page: { number: 1, size: 5, totalElements: 6, totalPages: 2 },
     }),
   );
 
   const page = await client.listDocuments({ page: 1, size: 5, status: ["SIGNED", "GENERATED"] });
 
-  assert.match(calls[0].url, /page=1&size=5&status=SIGNED&status=GENERATED$/);
+  assert.match(calls[0].url, /[?&]page=1&size=5&status=SIGNED&status=GENERATED$/);
   assert.equal(page.totalElements, 6);
   assert.equal(page.content[0].name, "Umowa");
   assert.equal(page.content[0].tags[0].name, "x");

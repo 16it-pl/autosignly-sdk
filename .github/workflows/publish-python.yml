@@ -27,7 +27,7 @@ jobs:
 
       - name: Run the test suite
         working-directory: clients/python
-        run: uv run --with pytest --with httpx pytest tests -q
+        run: uv run --with pytest --with httpx --with pyyaml pytest tests -q
 
       - name: Build the distributions
         working-directory: clients/python

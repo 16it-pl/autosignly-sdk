@@ -1,0 +1,1175 @@
+---
+openapi: 3.1.0
+components:
+  schemas:
+    ApiKeyValidationResponseV1:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          examples:
+          - true
+          description: "Whether the provided API key and secret are a valid, recognized\
+            \ credential pair"
+    CredentialsResponse:
+      type: object
+      description: Who the caller is and which environment the key belongs to.
+      properties:
+        valid:
+          type: boolean
+          examples:
+          - true
+          description: Whether the key and secret are a valid pair.
+        companyId:
+          type: string
+          description: Company the key belongs to. Null when the pair is invalid.
+        environmentId:
+          type: string
+          description: Environment the key operates on. Null when the pair is invalid.
+        environmentType:
+          $ref: "#/components/schemas/EnvironmentType"
+          type: string
+          description: Whether the key operates on production or on a sandbox. Null
+            when the pair is invalid.
+    DocumentInfoResponse:
+      type: object
+      description: "Full details of a single document, including its current status,\
+        \ signing mode, and the list of assigned signers."
+      properties:
+        id:
+          type: string
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          description: Unique document identifier.
+        name:
+          type: string
+          examples:
+          - Umowa o pracę 2024
+          description: Human-readable document name.
+        companyId:
+          type: string
+          examples:
+          - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
+          description: ID of the company that owns this document.
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+          type: string
+          description: Current lifecycle status of the document.
+        signingMode:
+          $ref: "#/components/schemas/DocumentSigningMode"
+          type: string
+          description: "Signing mode: whether the document requires a signature, is\
+            \ already signed, or requires none."
+        signerResponses:
+          type: array
+          items:
+            $ref: "#/components/schemas/SignerResponse"
+          description: "All signers assigned to this document, in signing order."
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagResponse1"
+          description: Tags assigned to the document.
+        fileUrl:
+          type: string
+          examples:
+          - https://files.autosignly.eu/...
+          description: "Short-lived link to the document file. Null when the document\
+            \ has no file yet. The link expires, so fetch the document again to obtain\
+            \ a fresh one rather than storing it. A document that is still being signed\
+            \ can be downloaded as well - it then carries only the signatures collected\
+            \ so far."
+    DocumentListItemResponse:
+      type: object
+      description: Summary of a single document as returned in a paged list. Does
+        not include signer details.
+      properties:
+        id:
+          type: string
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          description: Unique document identifier.
+        name:
+          type: string
+          examples:
+          - Umowa o pracę 2024
+          description: Human-readable document name.
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+          type: string
+          description: Current lifecycle status of the document.
+        signingMode:
+          $ref: "#/components/schemas/DocumentSigningMode"
+          type: string
+          description: "Signing mode: whether the document requires a signature, is\
+            \ already signed, or requires none."
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+          type: string
+          examples:
+          - 2024-03-15T10:30:00Z
+          description: Timestamp when the document was created.
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagResponse1"
+          description: Tags assigned to the document.
+    DocumentSigningMode:
+      type: string
+      enum:
+      - REQUIRES_SIGNATURE
+      - ALREADY_SIGNED
+      - NO_SIGNATURE_REQUIRED
+    DocumentStatus:
+      type: string
+      enum:
+      - GENERATED
+      - SIGNERS_ASSIGNED
+      - AWAITING_INITIAL_USB_SIGN
+      - NEED_RETRY_USB_INITIAL
+      - USB_SIGN_INITIAL_FAILED
+      - WAITING_FOR_SIGNATURE
+      - SIGNING_IN_PROGRESS
+      - AWAITING_FINAL_USB_SIGN
+      - NEED_RETRY_USB_FINALIZE
+      - USB_SIGN_FINAL_FAILED
+      - SIGNED
+      - CANCELLED
+      - CANCELLED_REMOVABLE
+      description: "Document status. GENERATED = created, signers not yet assigned;\
+        \ SIGNERS_ASSIGNED = signers assigned, not yet sent; AWAITING_INITIAL_USB_SIGN\
+        \ = initial USB seal in progress, emails not yet sent; NEED_RETRY_USB_INITIAL\
+        \ = initial seal failed fast retries, hourly auto-retry active up to 12h;\
+        \ USB_SIGN_INITIAL_FAILED = initial seal exhausted all retries, awaiting manual\
+        \ retry; WAITING_FOR_SIGNATURE = invitations sent; SIGNING_IN_PROGRESS = at\
+        \ least one signer signed; AWAITING_FINAL_USB_SIGN = final USB seal in progress;\
+        \ NEED_RETRY_USB_FINALIZE = final seal failed fast retries, hourly auto-retry\
+        \ active up to 12h; USB_SIGN_FINAL_FAILED = final seal exhausted all retries,\
+        \ awaiting manual retry; SIGNED = all signatures collected; CANCELLED = signing\
+        \ cancelled after at least one signature or link expiry; CANCELLED_REMOVABLE\
+        \ = cancelled before any signature collected, restorable to GENERATED."
+    EnvironmentType:
+      type: string
+      enum:
+      - PROD
+      - SANDBOX
+      description: "Environment type: PROD for the production environment, SANDBOX\
+        \ for isolated test environments."
+    ExternalSignerRequest:
+      type: object
+      required:
+      - firstName
+      - lastName
+      - email
+      - country
+      description: A single signer to be assigned to the document.
+      properties:
+        firstName:
+          type: string
+          examples:
+          - Jan
+          pattern: \S
+          description: Signer's first name. Required.
+        lastName:
+          type: string
+          examples:
+          - Kowalski
+          pattern: \S
+          description: Signer's last name. Required.
+        email:
+          type: string
+          examples:
+          - jan.kowalski@example.com
+          pattern: \S
+          description: Signer's email address. Required. The signing link is delivered
+            here.
+        phoneNumber:
+          type: string
+          examples:
+          - "+48123456789"
+          description: Signer's phone number in E.164 format. Required for AES+SMS
+            verification.
+        country:
+          type: string
+          examples:
+          - PL
+          pattern: "^[A-Za-z]{2}$"
+          description: Signer's signing country as ISO 3166-1 alpha-2 code. Required.
+            Determines the applicable signature policy.
+        locale:
+          type: string
+          examples:
+          - pl
+          description: "Language tag for the signing UI shown to this signer (IETF\
+            \ BCP 47). Optional, defaults to the document locale."
+        order:
+          type: integer
+          format: int32
+          examples:
+          - 1
+          description: "Signing order. Signers are notified in ascending order — the\
+            \ next signer receives their link only after the previous one has signed.\
+            \ Optional; if omitted, treated as 0 (no ordering guarantee among signers\
+            \ without an explicit order)."
+          minimum: 1
+        signatureType:
+          $ref: "#/components/schemas/SignatureType"
+          type: string
+          examples:
+          - QES
+          description: "Override the document-level signature type for this signer\
+            \ only. Optional — when omitted, the signer inherits the request-level\
+            \ signatureType (or SES when that is also not set)."
+        signatureVerificationMethod:
+          $ref: "#/components/schemas/VerificationMethod"
+          type: string
+          description: "Verification method for AES signatures (SMS or WK). Required\
+            \ when signatureType is AES, ignored otherwise."
+    Instant:
+      type: string
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    Locale:
+      type: object
+      properties:
+        language:
+          type: string
+        script:
+          type: string
+        country:
+          type: string
+        variant:
+          type: string
+        extensionKeys:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: char
+        unicodeLocaleAttributes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        unicodeLocaleKeys:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        iSO3Language:
+          type: string
+        iSO3Country:
+          type: string
+        displayLanguage:
+          type: string
+        displayScript:
+          type: string
+        displayCountry:
+          type: string
+        displayVariant:
+          type: string
+        displayName:
+          type: string
+    PageInfo:
+      type: object
+      properties:
+        number:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseDocumentListItemResponseV1:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentListItemResponse"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+    PageResponseTagResponseV1:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagResponse1"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+    SendForSigningRequest:
+      type: object
+      required:
+      - signatureType
+      description: |
+        Request body for POST /publics/v1/documents/{documentId}/send-for-signing.
+
+        The document must be in GENERATED or SIGNERS_ASSIGNED status — any other status returns 400.
+
+        Status `GENERATED`: `signers` is required and must not be empty; provided signers are saved and the document is sent.
+
+        Status `SIGNERS_ASSIGNED`: `signers` must be omitted or empty — signers already assigned to the document are used. Providing any signers returns 400.
+      properties:
+        signers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalSignerRequest"
+          description: |
+            List of signers. Conditional on document status:
+            - Status GENERATED: required, must not be empty. Signers are created and the first (by `order`) receives the signing link immediately.
+            - Status SIGNERS_ASSIGNED: must be omitted or empty. Providing signers returns 400 because signers are already set in the document.
+        signatureType:
+          $ref: "#/components/schemas/SignatureType"
+          type: string
+          examples:
+          - SES
+          description: "Type of signature: QES (qualified), AES (advanced), or SES\
+            \ (simple). Required."
+        signatureMode:
+          $ref: "#/components/schemas/SignatureMode"
+          type: string
+          examples:
+          - SIGNATURES_CARD
+          description: "Where signatures are placed: STAMP (visual stamp on the document)\
+            \ or SIGNATURES_CARD (a dedicated card appended to the document). Defaults\
+            \ to STAMP."
+        verificationMethod:
+          $ref: "#/components/schemas/VerificationMethod"
+          type: string
+          description: Verification method for AES signatures (SMS or WK). Required
+            when `signatureType` is AES.
+        signingInitiatorData:
+          $ref: "#/components/schemas/SigningInitiatorData"
+          type: object
+          examples:
+          - email: initiator@example.com
+            locale: pl
+          description: Optional data identifying the person initiating the signing
+            flow (email and locale). Used to personalise notifications sent to the
+            initiator.
+    SendForSigningResponse:
+      type: object
+      description: Result of sending a document for signing. Contains the document-level
+        status and the list of all signers.
+      properties:
+        documentId:
+          type: string
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          description: ID of the document that was sent for signing.
+        status:
+          $ref: "#/components/schemas/SigningStatusV1"
+          type: string
+          description: Document-level signing status. Always SENT after a successful
+            call.
+        signers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SignerStatusResponse"
+          description: All signers assigned to this document. The first signer (AWAITING_SIGNATURE)
+            receives the signing link immediately; the rest are PENDING.
+    SetDocumentTagsRequest:
+      type: object
+      description: "Replaces the whole tag set of the document: tags left out are\
+        \ removed from it, tags listed here are added. An empty request clears all\
+        \ tags."
+      properties:
+        tagIds:
+          type: array
+          items:
+            type: string
+          description: Ids of tags that already exist in the company tag list.
+        names:
+          type: array
+          items:
+            type: string
+            maxLength: 15
+          description: "Tag names — existing ones are reused, missing ones are added\
+            \ to the company tag list."
+    SignatureMode:
+      type: string
+      enum:
+      - STAMP
+      - SIGNATURES_CARD
+      description: "Signature mode: STAMP (signer places a visual stamp on the document)\
+        \ or SIGNATURES_CARD (signatures collected on a dedicated card appended to\
+        \ the document)."
+    SignatureType:
+      type: string
+      enum:
+      - QES
+      - AES
+      - SES
+      description: "Signature type: QES (qualified), AES (advanced), SES (simple)"
+    SignerResponse:
+      type: object
+      description: "Details of a signer assigned to a document, including contact\
+        \ data, signature type, and their position in the signing order."
+      properties:
+        email:
+          type: string
+          examples:
+          - jan.kowalski@example.com
+          description: Signer's email address — used to deliver the signing link.
+        firstName:
+          type: string
+          examples:
+          - Jan
+          description: Signer's first name.
+        lastName:
+          type: string
+          examples:
+          - Kowalski
+          description: Signer's last name.
+        phoneNumber:
+          type: string
+          examples:
+          - "+48600100200"
+          description: "Signer's phone number in E.164 format, required for SMS verification."
+        locale:
+          $ref: "#/components/schemas/Locale"
+          type: object
+          examples:
+          - pl
+          description: Locale used to localise signing emails and UI for this signer.
+        signatureType:
+          $ref: "#/components/schemas/SignatureType"
+          type: string
+          description: Signature type required from this signer.
+        country:
+          type: string
+          examples:
+          - PL
+          description: ISO 3166-1 alpha-2 country code used to resolve country-specific
+            signing policy.
+        signatureVerificationMethod:
+          $ref: "#/components/schemas/VerificationMethod"
+          type: string
+          description: Verification method used to confirm the signer's identity before
+            an AES signature. Null for SES.
+        signingOrder:
+          type: integer
+          format: int32
+          examples:
+          - 1
+          description: Position of this signer in the sequential signing order. The
+            signer with order 1 signs first.
+    SignerStatusResponse:
+      type: object
+      description: Status and signing link for a single signer. Only the first signer
+        in signing order has signUrl and expiresAt populated; the remaining signers
+        receive their link by email when their turn comes.
+      properties:
+        email:
+          type: string
+          examples:
+          - jan.kowalski@example.com
+          description: Signer's email address.
+        status:
+          $ref: "#/components/schemas/SigningStatusV1"
+          type: string
+          description: Per-signer signing status. AWAITING_SIGNATURE — this signer
+            is currently active and received the signing link. PENDING — this signer
+            is waiting for the preceding signers to finish.
+        signUrl:
+          type: string
+          examples:
+          - https://sign.example.com/s/abc123?hmac=xyz&expires=1234567890
+          description: Direct signing link for this signer. Present only for the first
+            signer (AWAITING_SIGNATURE); null for all others (PENDING). Link is valid
+            until expiresAt.
+        expiresAt:
+          $ref: "#/components/schemas/Instant"
+          type: string
+          examples:
+          - 2026-05-11T10:00:00Z
+          description: Expiry timestamp of the signing link. Present only when signUrl
+            is not null. The link is valid for 48 hours from the moment the document
+            was sent.
+    SigningInitiatorData:
+      type: object
+      properties:
+        email:
+          type: string
+        locale:
+          $ref: "#/components/schemas/Locale"
+    SigningStatusV1:
+      type: string
+      enum:
+      - SENT
+      - AWAITING_SIGNATURE
+      - PENDING
+      description: Signing status — used both at the document level and per signer.
+    TagRequest:
+      type: object
+      required:
+      - name
+      description: Tag to add to the company tag list.
+      properties:
+        name:
+          type: string
+          examples:
+          - Umowy
+          maxLength: 15
+          pattern: \S
+          description: "Tag name, max 15 characters. An existing tag with the same\
+            \ name (case-insensitive) is reused."
+    TagResponse1:
+      type: object
+      description: Company tag. Tags group documents and templates; a document generated
+        from a template inherits its tags.
+      properties:
+        id:
+          type: string
+          examples:
+          - 8f14e45f-ceea-467a-9575-1c1e0f9a3b21
+          description: Unique tag identifier.
+        name:
+          type: string
+          examples:
+          - Umowy
+          description: "Tag name, max 15 characters."
+        color:
+          type: string
+          examples:
+          - "#F6D6D8"
+          description: "Pastel colour derived from the name, for rendering chips."
+    UploadPdfAndSignRequest:
+      type: object
+      required:
+      - documentName
+      - signers
+      description: Request body (multipart `request` part) for POST /publics/v1/documents/signings.
+        Uploads a PDF and immediately sends it for signing.
+      properties:
+        documentName:
+          type: string
+          examples:
+          - Umowa najmu 2025
+          pattern: \S
+          description: Display name of the document.
+        signers:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ExternalSignerRequest"
+          description: List of signers. Must contain at least one entry.
+        signatureType:
+          $ref: "#/components/schemas/SignatureType"
+          type: string
+          examples:
+          - SES
+          description: "Type of signature: QES (qualified), AES (advanced), or SES\
+            \ (simple). Defaults to SES."
+        signatureMode:
+          $ref: "#/components/schemas/SignatureMode"
+          type: string
+          examples:
+          - SIGNATURES_CARD
+          description: "Where signatures are placed: STAMP (visual stamp on the document)\
+            \ or SIGNATURES_CARD (a dedicated card appended to the document). Defaults\
+            \ to STAMP."
+        verificationMethod:
+          $ref: "#/components/schemas/VerificationMethod"
+          type: string
+          description: Verification method for AES signatures (SMS or WK). Required
+            when signatureType is AES.
+        signingInitiatorData:
+          $ref: "#/components/schemas/SigningInitiatorData"
+          type: object
+          examples:
+          - email: initiator@example.com
+            locale: pl
+          description: Optional data identifying the person initiating the signing
+            flow (email and locale).
+    UploadPdfAndSignResponse:
+      type: object
+      description: Result of uploading a PDF and sending it for signing. Signing links
+        are delivered by the system directly to each signer by email.
+      properties:
+        documentId:
+          type: string
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          description: ID of the created document.
+    VerificationMethod:
+      type: string
+      enum:
+      - SMS
+      - WK
+      - BIOMETRIC
+      - WEBAUTHN
+      examples:
+      - SMS
+      description: Verification method used for AES signatures. SMS / WK are picked
+        per-country policy. BIOMETRIC is never required by any policy — it is always
+        accepted because the user already cleared WK and phone-number verification
+        at mobile onboarding before a device key could be registered. SES signatures
+        do not invoke verification at all.
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    SecurityScheme:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Authentication
+info:
+  title: Autodocuments API
+  version: v1
+security:
+- bearerAuth: []
+tags:
+- name: Public API – document signing
+  description: Endpoints accessible via API key + secret (X-API-KEY and X-API-SECRET
+    headers). No user login token required.
+- name: Public API – tags
+  description: "Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET\
+    \ headers). The key decides the environment, so a sandbox key never sees production\
+    \ tags."
+paths:
+  /api/publics/v1/api-key:
+    get:
+      summary: Validate API credentials
+      description: |
+        Checks whether the provided API key + secret pair is valid and whether it belongs to the given company.
+
+        Invalid credentials always return `200` with `valid=false` — the endpoint never returns `401` to avoid key enumeration. Only missing or blank headers produce `400`.
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: API key to validate
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret paired with the key
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyValidationResponseV1"
+        "400":
+          description: "X-API-KEY, X-API-SECRET, or companyId header is missing or\
+            \ blank"
+  /api/publics/v1/credentials:
+    get:
+      summary: Describe the calling credentials
+      description: |
+        Reports whether the key and secret are valid and which environment they operate on. Use it to confirm a client is pointed at a sandbox rather than at production.
+
+        Invalid credentials return `200` with `valid=false` - this endpoint never answers with `401`, so keys cannot be probed. Only a missing or blank header produces `400`.
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: API key identifying the calling company
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "200":
+          description: Result of the lookup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialsResponse"
+        "400":
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+  /api/publics/v1/documents:
+    get:
+      summary: List documents
+      description: |
+        Returns a paged list of documents belonging to the company identified by the API key. Optionally filter by one or more statuses. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
+      tags:
+      - Public API – document signing
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: "0"
+      - name: size
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: "20"
+      - name: sort
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+      - description: "Filter by status. Repeat for multiple values, e.g. status=SIGNED&status=GENERATED"
+        name: status
+        in: query
+        schema:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentStatus"
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "200":
+          description: Document list returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseDocumentListItemResponseV1"
+        "400":
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        "401":
+          description: Invalid API key or secret
+  /api/publics/v1/documents/signings:
+    post:
+      summary: Upload PDF and send for signing
+      description: |
+        Uploads a PDF file and immediately sends it to the provided signers.
+        Signing links are delivered by the system directly to each signer by email. Only the `documentId` is returned so the caller can track the document status later.
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: API key identifying the calling company
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              - request
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file to send for signing
+                request:
+                  $ref: "#/components/schemas/UploadPdfAndSignRequest"
+                  type: object
+                  required:
+                  - documentName
+                  - signers
+                  description: "Signing configuration (document name, signers, signature\
+                    \ type)"
+                  properties:
+                    documentName:
+                      type: string
+                      examples:
+                      - Umowa najmu 2025
+                      pattern: \S
+                      description: Display name of the document.
+                    signers:
+                      type: array
+                      minItems: 1
+                      items:
+                        $ref: "#/components/schemas/ExternalSignerRequest"
+                      description: List of signers. Must contain at least one entry.
+                    signatureType:
+                      $ref: "#/components/schemas/SignatureType"
+                      type: string
+                      examples:
+                      - SES
+                      description: "Type of signature: QES (qualified), AES (advanced),\
+                        \ or SES (simple). Defaults to SES."
+                    signatureMode:
+                      $ref: "#/components/schemas/SignatureMode"
+                      type: string
+                      examples:
+                      - SIGNATURES_CARD
+                      description: "Where signatures are placed: STAMP (visual stamp\
+                        \ on the document) or SIGNATURES_CARD (a dedicated card appended\
+                        \ to the document). Defaults to STAMP."
+                    verificationMethod:
+                      $ref: "#/components/schemas/VerificationMethod"
+                      type: string
+                      description: Verification method for AES signatures (SMS or
+                        WK). Required when signatureType is AES.
+                    signingInitiatorData:
+                      $ref: "#/components/schemas/SigningInitiatorData"
+                      type: object
+                      examples:
+                      - email: initiator@example.com
+                        locale: pl
+                      description: Optional data identifying the person initiating
+                        the signing flow (email and locale).
+            encoding:
+              request:
+                contentType: application/json
+        required: true
+      responses:
+        "200":
+          description: Document uploaded and sent for signing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPdfAndSignResponse"
+        "400":
+          description: |
+            Invalid request. Possible reasons:
+            - Missing or invalid file
+            - File failed antivirus scan
+            - Blank documentName
+            - Empty signers list
+            - signatureType AES without verificationMethod on the request
+            - AES signer missing signatureVerificationMethod
+            - Bean-validation failure on signer fields
+        "401":
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+  /api/publics/v1/documents/{documentId}:
+    get:
+      summary: Get document info
+      description: |
+        Returns basic information about the document, its status, and the list of signers. Access is restricted to documents belonging to the company identified by the API key.
+
+        The response carries `fileUrl`, a short-lived link to the document file. The link expires, so fetch the document again to obtain a fresh one rather than storing it. A document that is still being signed can be downloaded as well - it then carries only the signatures collected so far.
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: ID of the document
+        example: 03bef6df-faca-4aee-9836-80caeeaf4418
+        required: true
+        name: documentId
+        in: path
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "200":
+          description: Document info returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentInfoResponse"
+        "400":
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        "401":
+          description: Invalid API key or secret
+        "403":
+          description: Document does not belong to the company associated with the
+            provided API key
+  /api/publics/v1/documents/{documentId}/send-for-signing:
+    post:
+      summary: Send existing document for signing
+      description: |
+        Sends an existing document to signers and returns their signing links.
+
+        **The document must be in one of two statuses**.  Any other status results in a 400 error.
+
+        **Status `GENERATED`** — signers must be provided:
+        - `signers` list is required and must not be empty.
+        - Provided signers are saved to the document and it is sent immediately.
+
+        **Status `SIGNERS_ASSIGNED`** — signers must not be provided:
+        - `signers` must be omitted or empty; signers already assigned to the document are used.
+        - Providing any signers when the document is in this status returns 400.
+
+        **Response signers:** only the first signer (by `order`) receives a `signUrl` and `expiresAt` immediately; remaining signers receive their link by email when their turn comes (link valid 48 h from sending).
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: ID of the document to send for signing
+        example: 03bef6df-faca-4aee-9836-80caeeaf4418
+        required: true
+        name: documentId
+        in: path
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendForSigningRequest"
+        required: true
+      responses:
+        "200":
+          description: Document sent for signing successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendForSigningResponse"
+        "400":
+          description: |
+            Invalid request. Possible reasons:
+            - Document is not in GENERATED or SIGNERS_ASSIGNED status
+            - Status GENERATED: `signers` is empty or missing
+            - Status SIGNERS_ASSIGNED: `signers` provided (signers are already set in the document)
+            - `signatureType` not provided
+            - Bean-validation failure on signer fields (blank name/email, invalid country code, order < 1, etc.)
+        "401":
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        "403":
+          description: Document does not belong to the company associated with the
+            provided API key
+  /api/publics/v1/documents/{documentId}/tags:
+    put:
+      summary: Set document tags
+      description: |
+        Replaces the whole tag set of the document: tags left out of the request are removed from it, tags listed are added. Send an empty body to clear all tags. Tags can be given by `tagIds` (must already exist) or by `names` — a name that is not in the company tag list yet is added to it.
+      tags:
+      - Public API – document signing
+      parameters:
+      - description: Id of the document to tag
+        required: true
+        name: documentId
+        in: path
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDocumentTagsRequest"
+        required: true
+      responses:
+        "200":
+          description: Tags the document carries after the change
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagResponse1"
+        "400":
+          description: "A name is longer than 15 characters, or a header is missing"
+        "401":
+          description: Invalid API key or secret
+        "403":
+          description: Document does not belong to the caller's company/environment
+        "404":
+          description: One of the given tag ids does not exist in the caller's environment
+  /api/publics/v1/tags:
+    get:
+      summary: List tags
+      description: |
+        Returns a paged list of tags belonging to the company identified by the API key. Tags are the labels shown on documents and templates; a document generated from a template inherits the template tags. Optionally narrow the list with `name` (case-insensitive fragment). Sort via the `sort` query param, e.g. `sort=name,asc`.
+      tags:
+      - Public API – tags
+      parameters:
+      - description: Case-insensitive name fragment
+        example: umow
+        name: name
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: "0"
+      - name: size
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: "20"
+      - name: sort
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "200":
+          description: Tag list returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseTagResponseV1"
+        "400":
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        "401":
+          description: Invalid API key or secret
+    post:
+      summary: Add tag
+      description: |
+        Adds a tag to the company tag list in the environment the API key belongs to. When a tag with the same name already exists (case-insensitive) that one is returned instead of a duplicate, so the call is safe to repeat.
+      tags:
+      - Public API – tags
+      parameters:
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagRequest"
+        required: true
+      responses:
+        "200":
+          description: "Tag added, or the already existing one returned"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagResponse1"
+        "400":
+          description: "Name is blank, longer than 15 characters, or a header is missing"
+        "401":
+          description: Invalid API key or secret
+  /api/publics/v1/tags/{tagId}:
+    delete:
+      summary: Delete tag
+      description: |
+        Removes the tag from the company tag list and clears it from every document and template it was assigned to. Only tags of the environment the API key belongs to can be deleted.
+      tags:
+      - Public API – tags
+      parameters:
+      - description: Id of the tag to delete
+        required: true
+        name: tagId
+        in: path
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
+        required: true
+        name: X-API-KEY
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      - description: API secret for the calling company
+        required: true
+        name: X-API-SECRET
+        in: header
+        schema:
+          type: string
+          pattern: \S
+      responses:
+        "204":
+          description: Tag deleted
+        "400":
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        "401":
+          description: Invalid API key or secret
+        "404":
+          description: No such tag in the caller's environment

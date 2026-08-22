@@ -198,7 +198,7 @@ const list = (value: unknown): Json[] => (Array.isArray(value) ? (value as Json[
 export function toDocument(payload: Json): Document {
   return {
     id: String(payload.id ?? ""),
-    name: str(payload.name) ?? str(payload.documentName),
+    name: str(payload.name),
     companyId: str(payload.companyId),
     status: str(payload.status),
     signingMode: str(payload.signingMode),
@@ -211,10 +211,10 @@ export function toDocument(payload: Json): Document {
 export function toDocumentSummary(payload: Json): DocumentSummary {
   return {
     id: String(payload.id ?? ""),
-    name: str(payload.name) ?? str(payload.documentName),
+    name: str(payload.name),
     status: str(payload.status),
     signingMode: str(payload.signingMode),
-    createdAt: str(payload.createdAt) ?? str(payload.creationTimestamp),
+    createdAt: str(payload.createdAt),
     tags: list(payload.tags).map(toTag),
   };
 }
@@ -230,7 +230,7 @@ export function toCredentials(payload: Json): Credentials {
 
 export function toSigningRequestResult(payload: Json): SigningRequestResult {
   return {
-    documentId: str(payload.documentId) ?? str(payload.id),
+    documentId: str(payload.documentId),
     status: str(payload.status),
     signers: list(payload.signers).map(toSignerStatus),
   };
