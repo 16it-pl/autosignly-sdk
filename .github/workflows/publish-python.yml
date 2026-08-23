@@ -1,9 +1,22 @@
 name: publish-python
 
+# Releasing the Python client, in three deliberate steps:
+#
+#   1. verify   — tests and a build of the current .devN, to prove the tree ships
+#   2. promote  — 0.1.0.dev0 -> 0.1.0, commit, tag python/v0.1.0, then 0.1.1.dev0
+#   3. publish  — build the tagged commit and upload it
+#
+# Choosing testpypi skips the promote step and uploads the current .devN as it
+# stands — that is what dev versions are for, and a rehearsal must not burn a
+# release number.
+#
+# Steps 2 and 3 wait for a reviewer of their environment. Without required
+# reviewers configured there, the run passes straight through and the gate is
+# decorative.
+#
+# Everything lives in this one file on purpose: the PyPI trusted publisher is
+# registered against this file name, so the upload cannot move elsewhere.
 on:
-  push:
-    tags:
-      - "python/v*"
   workflow_dispatch:
     inputs:
       target:
@@ -16,7 +29,7 @@ on:
           - pypi
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,40 +46,113 @@ jobs:
         working-directory: clients/python
         run: uv build
 
-      - uses: actions/upload-artifact@v5
-        with:
-          name: python-dist
-          path: clients/python/dist/
+      - name: Report what would be released
+        working-directory: clients/python
+        run: |
+          current=$(grep -oE '"[^"]+"' src/autosignly/_version.py | tr -d '"')
+          echo "Current version: $current"
+          if [ "${{ inputs.target }}" = "pypi" ]; then
+            echo "Promote would release: ${current%%.dev*}"
+          else
+            echo "TestPyPI would receive: $current"
+          fi
 
-  testpypi:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+  promote:
+    needs: verify
+    if: inputs.target == 'pypi'
     runs-on: ubuntu-latest
-    environment: testpypi
+    environment: release-approval
     permissions:
-      id-token: write
+      contents: write
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/checkout@v5
         with:
-          name: python-dist
-          path: dist/
+          fetch-depth: 0
+
+      - id: cut
+        name: Cut the release version and open the next one
+        working-directory: clients/python
+        run: |
+          set -euo pipefail
+          version_file=src/autosignly/_version.py
+
+          current=$(grep -oE '"[^"]+"' "$version_file" | tr -d '"')
+          case "$current" in
+            *.dev*) ;;
+            *) echo "version '$current' is not a .dev version — nothing to promote" >&2; exit 1 ;;
+          esac
+
+          release="${current%%.dev*}"
+          case "$release" in
+            *.*.*) ;;
+            *) echo "version '$release' is not MAJOR.MINOR.PATCH" >&2; exit 1 ;;
+          esac
+          next="${release%.*}.$(( ${release##*.} + 1 )).dev0"
+          tag="python/v${release}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "tag ${tag} already exists — ${release} was already released" >&2
+            exit 1
+          fi
+
+          echo "==> ${current}  ->  release ${release}  (tag ${tag})  ->  next dev ${next}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          printf '__version__ = "%s"\n' "$release" > "$version_file"
+          git commit -am "release: autosignly ${release}"
+          git tag -a "${tag}" -m "autosignly ${release}"
+
+          printf '__version__ = "%s"\n' "$next" > "$version_file"
+          git commit -am "chore: start autosignly ${next} [skip ci]"
+
+          git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [verify, promote]
+    # promote is skipped for a TestPyPI rehearsal, and a skipped dependency would
+    # otherwise skip this job too.
+    if: ${{ !cancelled() && needs.verify.result == 'success'
+            && (inputs.target == 'testpypi' || needs.promote.result == 'success') }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    permissions:
+      # Trusted publishing: PyPI mints a short-lived credential from this token,
+      # so no API key has to live in the repository.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # For a real release, the tag — promote left a second commit that
+          # already opened the next dev version. For a rehearsal, the branch.
+          ref: ${{ needs.promote.outputs.tag || github.ref_name }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Build the distributions
+        working-directory: clients/python
+        run: uv build
+
+      - name: Confirm the version suits the target
+        working-directory: clients/python
+        run: |
+          version=$(grep -oE '"[^"]+"' src/autosignly/_version.py | tr -d '"')
+          if [ "${{ inputs.target }}" = "pypi" ]; then
+            case "$version" in
+              *.dev*) echo "Refusing to publish $version to PyPI" >&2; exit 1 ;;
+            esac
+          fi
+          echo "Publishing $version to ${{ inputs.target }}"
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
-
-  pypi:
-    needs: build
-    if: github.event_name == 'push' || inputs.target == 'pypi'
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          name: python-dist
-          path: dist/
-
-      - uses: pypa/gh-action-pypi-publish@release/v1
+          packages-dir: clients/python/dist/
+          repository-url: ${{ inputs.target == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
+          skip-existing: ${{ inputs.target == 'testpypi' }}

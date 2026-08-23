@@ -1,0 +1,145 @@
+name: publish-java
+
+# Releasing the Java client, in three deliberate steps:
+#
+#   1. verify   — tests and a build of the current -SNAPSHOT, to prove the tree ships
+#   2. promote  — 0.1.0-SNAPSHOT -> 0.1.0, commit, tag java/v0.1.0, then 0.1.1-SNAPSHOT
+#   3. publish  — sign the tagged commit and upload it to Maven Central
+#
+# Steps 2 and 3 wait for a reviewer of their environment. Without required
+# reviewers configured there, the run passes straight through and the gate is
+# decorative.
+#
+# Everything lives in this one file on purpose: the Central Portal publisher is
+# registered against this file name, so the upload cannot move elsewhere.
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Run the test suite
+        working-directory: clients/java
+        run: mvn -B -ntp verify
+
+      - name: Report what would be released
+        working-directory: clients/java
+        run: |
+          current=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
+          echo "Current version: $current"
+          echo "Promote would release: ${current%-SNAPSHOT}"
+
+  promote:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release-approval
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - id: cut
+        name: Cut the release version and open the next one
+        working-directory: clients/java
+        run: |
+          set -euo pipefail
+
+          current=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
+          case "$current" in
+            *-SNAPSHOT) ;;
+            *) echo "pom version '$current' is not a -SNAPSHOT — nothing to promote" >&2; exit 1 ;;
+          esac
+
+          release="${current%-SNAPSHOT}"
+          case "$release" in
+            *.*.*) ;;
+            *) echo "version '$release' is not MAJOR.MINOR.PATCH" >&2; exit 1 ;;
+          esac
+          next="${release%.*}.$(( ${release##*.} + 1 ))-SNAPSHOT"
+          tag="java/v${release}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "tag ${tag} already exists — ${release} was already released" >&2
+            exit 1
+          fi
+
+          echo "==> ${current}  ->  release ${release}  (tag ${tag})  ->  next dev ${next}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mvn -B -ntp versions:set -DnewVersion="${release}" -DgenerateBackupPoms=false
+          git commit -am "release: autosignly-client ${release}"
+          git tag -a "${tag}" -m "autosignly-client ${release}"
+
+          mvn -B -ntp versions:set -DnewVersion="${next}" -DgenerateBackupPoms=false
+          git commit -am "chore: start autosignly-client ${next} [skip ci]"
+
+          git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [verify, promote]
+    runs-on: ubuntu-latest
+    environment: maven-central
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tag, not the branch: promote left a second commit that already
+          # opened the next snapshot, and building that would release the wrong
+          # version.
+          ref: ${{ needs.promote.outputs.tag }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+          # Writes settings.xml with the Portal token and imports the signing key.
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Refuse to publish a snapshot
+        working-directory: clients/java
+        run: |
+          version=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
+          case "$version" in
+            *-SNAPSHOT) echo "Refusing to publish $version to Maven Central" >&2; exit 1 ;;
+          esac
+          echo "Publishing $version"
+
+      - name: Sign and upload
+        working-directory: clients/java
+        # Lands in the Portal as a draft (autoPublish=false in the pom): a version
+        # on Central can never be changed or withdrawn, so the last step is a
+        # deliberate click rather than a side effect of a pipeline.
+        run: mvn -B -ntp -Prelease -DskipTests deploy
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}

@@ -1,63 +1,52 @@
 name: publish-npm
 
+# Releasing an npm package, in three deliberate steps:
+#
+#   1. verify   — tests and a build of the current -dev.N, to prove the tree ships
+#   2. promote  — 0.1.0-dev.0 -> 0.1.0, commit, tag, then 0.1.1-dev.0
+#   3. publish  — build the tagged commit and upload it to npm
+#
+# Steps 2 and 3 wait for a reviewer of their environment. Without required
+# reviewers configured there, the run passes straight through and the gate is
+# decorative.
+#
+# Everything lives in this one file on purpose: the npm trusted publisher is
+# registered against this file name, so the upload cannot move elsewhere.
 on:
-  push:
-    tags:
-      # node/v* publishes the client, cli/v* publishes the command line tool
-      - "node/v*"
-      - "cli/v*"
   workflow_dispatch:
     inputs:
       package:
-        description: Which package to publish
+        description: Which package to release
         required: true
         type: choice
         options:
           - client
           - cli
-      tag:
-        description: npm dist-tag (use dev for prereleases, latest for stable)
-        required: true
-        default: dev
-        type: string
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
-    permissions:
-      # Trusted publishing: npm mints a short-lived credential from this token,
-      # so no NPM_TOKEN has to live in the repository.
-      id-token: write
-      contents: read
-
+    outputs:
+      dir: ${{ steps.pick.outputs.dir }}
+      prefix: ${{ steps.pick.outputs.prefix }}
     steps:
       - uses: actions/checkout@v5
+
+      - id: pick
+        run: |
+          if [ "${{ inputs.package }}" = "client" ]; then
+            echo "dir=clients/node" >> "$GITHUB_OUTPUT"
+            echo "prefix=node" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=tools/cli" >> "$GITHUB_OUTPUT"
+            echo "prefix=cli" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
         with:
           # Trusted publishing needs npm 11.5.1+, which ships with Node 24.
           node-version: 24
           registry-url: https://registry.npmjs.org
-
-      - name: Pick the package
-        id: pick
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            case "${{ github.ref_name }}" in
-              node/v*) echo "dir=clients/node" >> "$GITHUB_OUTPUT" ;;
-              cli/v*)  echo "dir=tools/cli"    >> "$GITHUB_OUTPUT" ;;
-            esac
-            # A prerelease version must not take over the latest tag.
-            case "${{ github.ref_name }}" in
-              *-*) echo "tag=dev"    >> "$GITHUB_OUTPUT" ;;
-              *)   echo "tag=latest" >> "$GITHUB_OUTPUT" ;;
-            esac
-          else
-            [ "${{ inputs.package }}" = "client" ] \
-              && echo "dir=clients/node" >> "$GITHUB_OUTPUT" \
-              || echo "dir=tools/cli" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Install dependencies
         working-directory: ${{ steps.pick.outputs.dir }}
@@ -71,17 +60,109 @@ jobs:
         working-directory: ${{ steps.pick.outputs.dir }}
         run: npm run build
 
-      - name: Confirm the tag matches package.json
-        if: github.event_name == 'push'
+      - name: Report what would be released
         working-directory: ${{ steps.pick.outputs.dir }}
         run: |
-          version=$(node -p "require('./package.json').version")
-          tagged="${GITHUB_REF_NAME#*/v}"
-          if [ "$version" != "$tagged" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package version $version" >&2
+          current=$(node -p "require('./package.json').version")
+          echo "Current version: $current"
+          echo "Promote would release: ${current%%-dev*}"
+
+  promote:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release-approval
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - id: cut
+        name: Cut the release version and open the next one
+        working-directory: ${{ needs.verify.outputs.dir }}
+        env:
+          PREFIX: ${{ needs.verify.outputs.prefix }}
+        run: |
+          set -euo pipefail
+
+          current=$(node -p "require('./package.json').version")
+          case "$current" in
+            *-dev.*) ;;
+            *) echo "version '$current' is not a -dev version — nothing to promote" >&2; exit 1 ;;
+          esac
+
+          release="${current%%-dev*}"
+          case "$release" in
+            *.*.*) ;;
+            *) echo "version '$release' is not MAJOR.MINOR.PATCH" >&2; exit 1 ;;
+          esac
+          next="${release%.*}.$(( ${release##*.} + 1 ))-dev.0"
+          tag="${PREFIX}/v${release}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "tag ${tag} already exists — ${release} was already released" >&2
             exit 1
           fi
 
+          echo "==> ${current}  ->  release ${release}  (tag ${tag})  ->  next dev ${next}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # --no-git-tag-version: the tag is created below with the package
+          # prefix, since this repository releases several packages.
+          npm version "$release" --no-git-tag-version
+          git commit -am "release: $(node -p "require('./package.json').name") ${release}"
+          git tag -a "${tag}" -m "${tag}"
+
+          npm version "$next" --no-git-tag-version
+          git commit -am "chore: start ${next} [skip ci]"
+
+          git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [verify, promote]
+    runs-on: ubuntu-latest
+    environment: npm-release
+    permissions:
+      # Trusted publishing: npm mints a short-lived credential from this token,
+      # so no NPM_TOKEN has to live in the repository.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tag, not the branch: promote left a second commit that already
+          # opened the next dev version.
+          ref: ${{ needs.promote.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        working-directory: ${{ needs.verify.outputs.dir }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ needs.verify.outputs.dir }}
+        run: npm run build
+
       - name: Publish
-        working-directory: ${{ steps.pick.outputs.dir }}
-        run: npm publish --tag ${{ steps.pick.outputs.tag }} --provenance
+        working-directory: ${{ needs.verify.outputs.dir }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          case "$version" in
+            *-dev.*) echo "Refusing to publish $version" >&2; exit 1 ;;
+          esac
+          echo "Publishing $version"
+          npm publish --provenance
