@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { test } from "node:test";
 
 import { AutosignlyClient } from "./client.js";
+import { VERSION } from "./version.js";
 import { AuthenticationError, NotFoundError, RateLimitError, ValidationError } from "./errors.js";
 
 const KEY = "api_key_test";
@@ -39,6 +41,18 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
     status,
     headers: { "content-type": "application/json", ...headers },
   });
+
+test("the User-Agent reports the version from package.json", async () => {
+  const { client, calls } = buildClient(() => json({ valid: true }));
+
+  await client.validateCredentials();
+
+  // Read straight from the manifest: a constant written by hand would drift and
+  // every request would then claim a version nobody is running.
+  const manifest = createRequire(import.meta.url)("../package.json") as { version: string };
+  assert.equal(calls[0].headers.get("user-agent"), `autosignly-node/${manifest.version}`);
+  assert.equal(VERSION, manifest.version);
+});
 
 test("sends the credentials as headers", async () => {
   const { client, calls } = buildClient(() => json({ valid: true }));

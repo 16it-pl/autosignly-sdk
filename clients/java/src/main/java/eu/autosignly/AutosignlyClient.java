@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -19,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -48,7 +50,7 @@ public final class AutosignlyClient {
 
     public static final String PRODUCTION_BASE_URL = "https://app.autosignly.eu/api";
     private static final String API_PREFIX = "/publics/v1";
-    private static final String VERSION = "0.1.0";
+    private static final String VERSION = readVersion();
 
     private static final Set<Integer> RETRY_STATUSES = Set.of(429, 500, 502, 503, 504);
     private static final double MAX_RETRY_DELAY_SECONDS = 60;
@@ -562,6 +564,25 @@ public final class AutosignlyClient {
                 ? mapper.convertValue(payload.get("page"), PageInfo.class)
                 : new PageInfo(0, content.size(), content.size(), content.isEmpty() ? 0 : 1);
         return new Page<>(content, info.number(), info.size(), info.totalElements(), info.totalPages());
+    }
+
+    /**
+     * The version of this jar, filtered into {@code client.properties} from the pom
+     * at build time. Reported in the User-Agent, so a support conversation always
+     * starts with the version the caller actually runs.
+     */
+    private static String readVersion() {
+        try (InputStream stream = AutosignlyClient.class.getResourceAsStream("client.properties")) {
+            if (stream == null) {
+                return "unknown";
+            }
+            Properties properties = new Properties();
+            properties.load(stream);
+            return properties.getProperty("version", "unknown");
+        } catch (IOException e) {
+            // A missing version must never stop a request from going out.
+            return "unknown";
+        }
     }
 
     private static byte[] multipart(String boundary, byte[] pdf, String fileName, String requestJson)

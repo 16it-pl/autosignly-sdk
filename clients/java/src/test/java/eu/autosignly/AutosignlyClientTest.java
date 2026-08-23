@@ -307,6 +307,23 @@ class AutosignlyClientTest {
     }
 
     @Test
+    void reportsTheVersionOfTheJarInTheUserAgent() {
+        answer(200, "{\"valid\":true}");
+
+        client.validateCredentials();
+
+        // The version is filtered into client.properties from the pom, so an
+        // unfiltered resource or a missing one shows up here rather than in a
+        // support ticket about a caller "running an unknown version".
+        assertThat(calls.get(0).headers().firstValue("user-agent"))
+                .hasValueSatisfying(agent -> assertThat(agent)
+                        .startsWith("autosignly-java/")
+                        .doesNotContain("unknown")
+                        .doesNotContain("${")
+                        .matches("autosignly-java/\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?"));
+    }
+
+    @Test
     void aWriteCarriesAnIdempotencyKeyAndAReadDoesNot() {
         answer(200, "{\"id\":\"t-1\",\"name\":\"Umowy\"}");
 
