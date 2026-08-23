@@ -31,6 +31,7 @@ export {
 } from "./errors.js";
 export {
   DocumentStatus,
+  EnvironmentType,
   SignatureMode,
   SignatureType,
   SigningMode,

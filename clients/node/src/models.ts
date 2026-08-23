@@ -29,6 +29,11 @@ export const SignatureMode = {
   SIGNATURES_CARD: "SIGNATURES_CARD",
 } as const;
 
+export const EnvironmentType = {
+  PROD: "PROD",
+  SANDBOX: "SANDBOX",
+} as const;
+
 export const SigningMode = {
   REQUIRES_SIGNATURE: "REQUIRES_SIGNATURE",
   ALREADY_SIGNED: "ALREADY_SIGNED",

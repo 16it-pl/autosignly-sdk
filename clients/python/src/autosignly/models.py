@@ -30,6 +30,22 @@ class VerificationMethod:
     BIOMETRIC = "BIOMETRIC"
 
 
+class SignatureMode:
+    """Where signatures are placed on the document."""
+
+    #: The signer places a visual stamp on the document.
+    STAMP = "STAMP"
+    #: Signatures are collected on a card appended to the document.
+    SIGNATURES_CARD = "SIGNATURES_CARD"
+
+
+class EnvironmentType:
+    """Which environment a key and secret pair belongs to."""
+
+    PROD = "PROD"
+    SANDBOX = "SANDBOX"
+
+
 class SigningMode:
     """Whether a document still needs signatures."""
 
