@@ -8,6 +8,68 @@ components:
           - true
           type: boolean
       type: object
+    AttachmentFormat:
+      description: Detected original format of the attachment. Detection is based on the file content (magic bytes), never
+        on the file name or the client-supplied content type.
+      enum:
+      - PDF
+      - JPEG
+      - PNG
+      - HEIC
+      type: string
+    AttachmentResponse:
+      description: A file attached to a document. Attachments are converted to PDF and merged into the document when it is
+        sent for signing, behind an index page listing each one with its checksum — so a single signature covers the document
+        and everything attached to it.
+      properties:
+        fileName:
+          description: File name as uploaded, stripped of any path.
+          examples:
+          - protocol-photo-1.jpg
+          type: string
+        fileUrl:
+          description: Short-lived link to the attachment converted to PDF — the rendition that gets merged. Null while the
+            conversion is not ready.
+          type: string
+        format:
+          $ref: '#/components/schemas/AttachmentFormat'
+          description: Format detected from the file content, never from its name or content type.
+          type: string
+        id:
+          description: Unique attachment identifier.
+          examples:
+          - 9f1c2d3e-4b5a-6789-abcd-ef0123456789
+          type: string
+        orderIndex:
+          description: Position in the merged document, 0-based. Attachments merge in this order.
+          examples:
+          - 0
+          format: int32
+          type: integer
+        pageCount:
+          description: Number of pages this attachment takes in the merged document. Null until the conversion finishes.
+          examples:
+          - 2
+          format: int32
+          type: integer
+        sha256:
+          description: SHA-256 of the uploaded file, printed on the index page of the signed document so a reader can verify
+            the attachment independently.
+          examples:
+          - 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+          type: string
+        sizeBytes:
+          description: Size of the uploaded file in bytes, before conversion to PDF.
+          examples:
+          - 482913
+          format: int64
+          type: integer
+        status:
+          $ref: '#/components/schemas/DocumentAttachmentStatus'
+          description: READY means the attachment is converted and will be merged; FAILED means the conversion did not succeed
+            and the attachment is skipped when the document is signed.
+          type: string
+      type: object
     CredentialsResponse:
       description: Who the caller is and which environment the key belongs to.
       properties:
@@ -27,6 +89,13 @@ components:
           - true
           type: boolean
       type: object
+    DocumentAttachmentStatus:
+      description: Attachment processing status. READY = converted to PDF and ready to be merged into the signed document;
+        FAILED = conversion failed, the attachment is skipped when the document is sent to sign.
+      enum:
+      - READY
+      - FAILED
+      type: string
     DocumentInfoResponse:
       description: Full details of a single document, including its current status, signing mode, and the list of assigned
         signers.
@@ -286,7 +355,7 @@ components:
           $ref: '#/components/schemas/PageInfo'
       type: object
     SendForSigningRequest:
-      description: 'Request body for POST /publics/v1/documents/{documentId}/send-for-signing.
+      description: 'Request body for POST /publics/v1/documents/{documentId}/signings.
 
 
         The document must be in GENERATED or SIGNERS_ASSIGNED status — any other status returns 400.
@@ -568,6 +637,29 @@ components:
           - 03bef6df-faca-4aee-9836-80caeeaf4418
           type: string
       type: object
+    UploadPdfRequest:
+      description: What to call the uploaded document. Signers and signature settings are given later, when the document is
+        sent for signing.
+      properties:
+        documentName:
+          description: Name of the document, shown to signers and used for the stored file.
+          examples:
+          - Consulting agreement
+          pattern: \S
+          type: string
+      required:
+      - documentName
+      type: object
+    UploadPdfResponse:
+      description: Result of uploading a PDF. The document is stored but not sent to anyone yet, so attachments can still
+        be added to it.
+      properties:
+        documentId:
+          description: ID of the created document.
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          type: string
+      type: object
     VerificationMethod:
       description: Verification method used for AES signatures. SMS / WK are picked per-country policy. BIOMETRIC is never
         required by any policy — it is always accepted because the user already cleared WK and phone-number verification at
@@ -582,9 +674,10 @@ components:
       type: string
   securitySchemes:
     SecurityScheme:
+      bearerFormat: JWT
       description: Authentication
-      openIdConnectUrl: https://auth.16it.org/realms/local-16it/.well-known/openid-configuration
-      type: openIdConnect
+      scheme: bearer
+      type: http
     bearerAuth:
       bearerFormat: JWT
       scheme: bearer
@@ -727,6 +820,82 @@ paths:
         '401':
           description: Invalid API key or secret
       summary: List documents
+      tags:
+      - Public API – document signing
+    post:
+      description: 'Stores a PDF as a document without notifying anyone. Use this when the document needs attachments before
+        it goes out: upload it, attach the files, then send it with `/documents/{documentId}/signings`.
+
+
+        To upload and send in a single call, use `/documents/signings` instead — a document that has already been sent can
+        no longer take attachments.
+
+        '
+      parameters:
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              request:
+                contentType: application/json
+            schema:
+              properties:
+                file:
+                  description: PDF file to store
+                  format: binary
+                  type: string
+                request:
+                  $ref: '#/components/schemas/UploadPdfRequest'
+                  description: Name of the document
+                  properties:
+                    documentName:
+                      description: Name of the document, shown to signers and used for the stored file.
+                      examples:
+                      - Consulting agreement
+                      pattern: \S
+                      type: string
+                  required:
+                  - documentName
+                  type: object
+              required:
+              - file
+              - request
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadPdfResponse'
+          description: Document stored, ready for attachments and signers
+        '400':
+          description: 'Invalid request. Possible reasons:
+
+            - Missing or invalid file
+
+            - File failed antivirus scan
+
+            - Blank documentName
+
+            '
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+      summary: Upload a PDF without sending it
       tags:
       - Public API – document signing
   /api/publics/v1/documents/signings:
@@ -893,7 +1062,163 @@ paths:
       summary: Get document info
       tags:
       - Public API – document signing
-  /api/publics/v1/documents/{documentId}/send-for-signing:
+  /api/publics/v1/documents/{documentId}/attachments:
+    get:
+      description: 'Attachments of a document, in the order they will be merged. Each carries the SHA-256 of the uploaded
+        file — the same checksum printed on the index page of the signed document, so a reader can verify an attachment independently.
+
+        '
+      parameters:
+      - description: Document to list the attachments of
+        in: path
+        name: documentId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AttachmentResponse'
+                type: array
+          description: Attachments of the document
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        '404':
+          description: No such document in this company and environment
+      summary: List document attachments
+      tags:
+      - Public API – document signing
+    post:
+      description: 'Adds a file to a document that has not been sent for signing yet. The attachment is converted to PDF and
+        merged into the document when it is sent, behind an index page listing every attachment with its checksum — so one
+        signature covers the document and everything attached to it.
+
+
+        Accepted formats are PDF, JPEG and PNG, detected from the file content rather than from its name. Attachments merge
+        in upload order.
+
+        '
+      parameters:
+      - description: Document to attach the file to
+        in: path
+        name: documentId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: File to attach
+                  format: binary
+                  type: string
+              required:
+              - file
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentResponse'
+          description: Attachment stored and converted
+        '400':
+          description: 'Invalid request. Possible reasons:
+
+            - Unsupported format, or a password protected PDF
+
+            - Empty file
+
+            - File, count or total size limit exceeded
+
+            - Document is no longer editable, because it has already been sent for signing
+
+            '
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        '404':
+          description: No such document in this company and environment
+      summary: Attach a file to a document
+      tags:
+      - Public API – document signing
+  /api/publics/v1/documents/{documentId}/attachments/{attachmentId}:
+    delete:
+      description: Removes an attachment from a document that has not been sent for signing yet. The remaining attachments
+        close the gap in the merge order.
+      parameters:
+      - description: Attachment to remove
+        in: path
+        name: attachmentId
+        required: true
+        schema:
+          type: string
+      - description: Document the attachment belongs to
+        in: path
+        name: documentId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '204':
+          description: Attachment removed
+        '400':
+          description: Document is no longer editable, because it has already been sent for signing
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        '404':
+          description: No such document or attachment in this company and environment
+      summary: Remove an attachment
+      tags:
+      - Public API – document signing
+  /api/publics/v1/documents/{documentId}/signings:
     post:
       description: 'Sends an existing document to signers and returns their signing links.
 

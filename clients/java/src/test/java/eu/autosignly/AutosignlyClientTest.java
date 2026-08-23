@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import eu.autosignly.Models.Attachment;
 import eu.autosignly.Models.Document;
 import eu.autosignly.Models.Signer;
 
@@ -201,6 +202,97 @@ class AutosignlyClientTest {
                 .contains("name=\"request\"")
                 .contains("\"signatureMode\":\"SIGNATURES_CARD\"")
                 .contains("\"order\":1");
+    }
+
+    @Test
+    void uploadPdfStoresTheDocumentWithoutSendingIt() {
+        answer(200, "{\"documentId\":\"d-7\"}");
+
+        String documentId = client.uploadPdf(new byte[] {37, 80, 68, 70}, "Umowa", "umowa.pdf");
+
+        assertThat(documentId).isEqualTo("d-7");
+        Recorded call = calls.get(0);
+        assertThat(call.path()).isEqualTo("/api/publics/v1/documents");
+        assertThat(call.body())
+                .contains("name=\"file\"; filename=\"umowa.pdf\"")
+                .contains("{\"documentName\":\"Umowa\"}")
+                .doesNotContain("signers");
+    }
+
+    @Test
+    void listAttachmentsParsesTheMergeOrder() {
+        answer(200, """
+                [{"id":"att-1","orderIndex":0,"fileName":"photo.jpg","format":"JPEG","sizeBytes":482913,
+                  "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+                  "pageCount":1,"status":"READY","fileUrl":"http://files.test/att-1.pdf"},
+                 {"id":"att-2","orderIndex":1,"fileName":"annex.pdf","format":"PDF","status":"READY"}]""");
+
+        var attachments = client.listAttachments("d-1");
+
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/documents/d-1/attachments");
+        assertThat(attachments).extracting(Attachment::id).containsExactly("att-1", "att-2");
+        assertThat(attachments).extracting(Attachment::orderIndex).containsExactly(0, 1);
+        assertThat(attachments.get(0).sizeBytes()).isEqualTo(482913L);
+        assertThat(attachments.get(0).pageCount()).isEqualTo(1);
+        assertThat(attachments.get(1).pageCount()).isNull();
+    }
+
+    @Test
+    void addAttachmentPostsTheFileAsMultipart() {
+        answer(200, "{\"id\":\"att-1\",\"orderIndex\":0,\"fileName\":\"photo.jpg\",\"status\":\"READY\"}");
+
+        Attachment attachment = client.addAttachment("d-1", new byte[] {-1, -40, -1, -32}, "photo.jpg");
+
+        assertThat(attachment.id()).isEqualTo("att-1");
+        Recorded call = calls.get(0);
+        assertThat(call.method()).isEqualTo("POST");
+        assertThat(call.path()).isEqualTo("/api/publics/v1/documents/d-1/attachments");
+        assertThat(call.headers().firstValue("content-type")).hasValueSatisfying(
+                type -> assertThat(type).startsWith("multipart/form-data; boundary=autosignly-"));
+        assertThat(call.body())
+                .contains("name=\"file\"; filename=\"photo.jpg\"")
+                .contains("Content-Type: image/jpeg")
+                .doesNotContain("name=\"request\"");
+    }
+
+    @Test
+    void deleteAttachmentTargetsTheAttachment() {
+        answer(204, "");
+
+        client.deleteAttachment("d-1", "att-1");
+
+        assertThat(calls.get(0).method()).isEqualTo("DELETE");
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/documents/d-1/attachments/att-1");
+    }
+
+    @Test
+    void downloadAttachmentFollowsTheConvertedFileLink() {
+        handler = exchange -> {
+            if (exchange.getRequestURI().getPath().endsWith("/attachments")) {
+                respond(exchange, 200, "[{\"id\":\"att-1\",\"fileUrl\":\"http://127.0.0.1:"
+                        + server.getAddress().getPort() + "/files/att-1.pdf\"}]");
+            } else {
+                try {
+                    byte[] pdf = {37, 80, 68, 70};
+                    exchange.sendResponseHeaders(200, pdf.length);
+                    exchange.getResponseBody().write(pdf);
+                    exchange.close();
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        };
+
+        assertThat(client.downloadAttachment("d-1", "att-1")).containsExactly(37, 80, 68, 70);
+    }
+
+    @Test
+    void downloadAttachmentReportsAnAttachmentThatIsNotConvertedYet() {
+        answer(200, "[{\"id\":\"att-1\",\"status\":\"FAILED\"}]");
+
+        assertThatThrownBy(() -> client.downloadAttachment("d-1", "att-1"))
+                .isInstanceOf(AutosignlyException.NotFound.class)
+                .hasMessageContaining("not converted");
     }
 
     @Test

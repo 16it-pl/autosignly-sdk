@@ -90,6 +90,7 @@ class ContractTest {
 
     static Stream<org.junit.jupiter.params.provider.Arguments> models() {
         return Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of(Models.Attachment.class, "AttachmentResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Document.class, "DocumentInfoResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.DocumentSummary.class, "DocumentListItemResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.SignerDetails.class, "SignerResponse"),
@@ -123,8 +124,10 @@ class ContractTest {
                 "/api/publics/v1/credentials",
                 "/api/publics/v1/documents",
                 "/api/publics/v1/documents/{documentId}",
+                "/api/publics/v1/documents/{documentId}/attachments",
+                "/api/publics/v1/documents/{documentId}/attachments/{attachmentId}",
                 "/api/publics/v1/documents/signings",
-                "/api/publics/v1/documents/{documentId}/send-for-signing",
+                "/api/publics/v1/documents/{documentId}/signings",
                 "/api/publics/v1/documents/{documentId}/tags",
                 "/api/publics/v1/tags",
                 "/api/publics/v1/tags/{tagId}");

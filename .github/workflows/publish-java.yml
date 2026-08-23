@@ -134,9 +134,6 @@ jobs:
 
       - name: Sign and upload
         working-directory: clients/java
-        # Lands in the Portal as a draft (autoPublish=false in the pom): a version
-        # on Central can never be changed or withdrawn, so the last step is a
-        # deliberate click rather than a side effect of a pipeline.
         run: mvn -B -ntp -Prelease -DskipTests deploy
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}

@@ -16,11 +16,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import eu.autosignly.Models.Attachment;
 import eu.autosignly.Models.Credentials;
 import eu.autosignly.Models.Document;
 import eu.autosignly.Models.DocumentSummary;
@@ -201,28 +203,90 @@ public final class AutosignlyClient {
                     "Document " + documentId + " has no file to download", 404, null, null);
         }
 
-        HttpRequest download = HttpRequest.newBuilder(URI.create(document.fileUrl()))
-                .timeout(timeout)
-                .GET()
-                .build();
+        return download(document.fileUrl(), documentId);
+    }
+
+    /**
+     * Store a PDF as a document without sending it to anyone.
+     *
+     * <p>Returns the identifier of the created document. Use this when the document
+     * needs attachments before it goes out: upload it, attach the files with
+     * {@link #addAttachment}, then call {@link #sendForSigning}. A document that has
+     * already been sent can no longer take attachments.
+     */
+    public String uploadPdf(byte[] pdf, String documentName, String fileName) {
+        ObjectNode request = mapper.createObjectNode();
+        request.put("documentName", documentName);
+
+        byte[] multipart;
+        String boundary = "autosignly-" + UUID.randomUUID();
         try {
-            HttpResponse<byte[]> response = http.send(download, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() >= 400) {
-                throw toError(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8), null);
-            }
-            return response.body();
+            multipart = multipart(boundary, pdf, fileName == null ? "document.pdf" : fileName,
+                    mapper.writeValueAsString(request));
         } catch (IOException e) {
-            throw new AutosignlyException.Connection("Could not download " + documentId, e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AutosignlyException.Connection("Interrupted while downloading " + documentId, e);
+            throw new AutosignlyException("Could not build the upload request", e);
         }
+
+        JsonNode payload = request("POST", "/documents", null, new Multipart(boundary, multipart));
+        return payload == null ? "" : payload.path("documentId").asText("");
+    }
+
+    // -- attachments ---------------------------------------------------------
+
+    /** Return the attachments of a document, in the order they will merge. */
+    public List<Attachment> listAttachments(String documentId) {
+        JsonNode payload = request("GET", "/documents/" + documentId + "/attachments", null, null);
+        return payload == null || payload.isNull()
+                ? List.of()
+                : mapper.convertValue(payload, new TypeReference<List<Attachment>>() {});
+    }
+
+    /**
+     * Attach a file to a document that has not been sent for signing yet.
+     *
+     * <p>The file is converted to PDF and merged into the document when it is sent,
+     * behind an index page carrying its checksum, so one signature covers the
+     * document and everything attached to it. PDF, JPEG and PNG are accepted,
+     * recognised from the content rather than the file name. Attachments merge in
+     * the order they were added.
+     */
+    public Attachment addAttachment(String documentId, byte[] content, String fileName) {
+        String boundary = "autosignly-" + UUID.randomUUID();
+        byte[] multipart;
+        try {
+            multipart = filePart(boundary, content, fileName, contentType(fileName));
+        } catch (IOException e) {
+            throw new AutosignlyException("Could not build the attachment request", e);
+        }
+
+        return read(request("POST", "/documents/" + documentId + "/attachments", null,
+                new Multipart(boundary, multipart)), Attachment.class);
+    }
+
+    /** Remove an attachment from a document not yet sent for signing. */
+    public void deleteAttachment(String documentId, String attachmentId) {
+        request("DELETE", "/documents/" + documentId + "/attachments/" + attachmentId, null, null);
+    }
+
+    /** Fetch one attachment converted to PDF — the rendition that gets merged. */
+    public byte[] downloadAttachment(String documentId, String attachmentId) {
+        Attachment attachment = listAttachments(documentId).stream()
+                .filter(candidate -> attachmentId.equals(candidate.id()))
+                .findFirst()
+                .orElseThrow(() -> new AutosignlyException.NotFound(
+                        "Document " + documentId + " has no attachment " + attachmentId, 404, null, null));
+
+        if (attachment.fileUrl() == null || attachment.fileUrl().isBlank()) {
+            throw new AutosignlyException.NotFound(
+                    "Attachment " + attachmentId + " is not converted yet", 404, null, null);
+        }
+        return download(attachment.fileUrl(), attachmentId);
     }
 
     /** Send an existing document to the given signers. */
     public SigningRequestResult sendForSigning(String documentId, SigningOptions options) {
         ObjectNode body = options.toJson(mapper);
-        return read(request("POST", "/documents/" + documentId + "/send-for-signing", body, null),
+        return read(request("POST", "/documents/" + documentId + "/signings", body, null),
                 SigningRequestResult.class);
     }
 
@@ -289,6 +353,25 @@ public final class AutosignlyClient {
     }
 
     // -- transport -----------------------------------------------------------
+
+    private byte[] download(String url, String subject) {
+        HttpRequest download = HttpRequest.newBuilder(URI.create(url))
+                .timeout(timeout)
+                .GET()
+                .build();
+        try {
+            HttpResponse<byte[]> response = http.send(download, HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() >= 400) {
+                throw toError(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8), null);
+            }
+            return response.body();
+        } catch (IOException e) {
+            throw new AutosignlyException.Connection("Could not download " + subject, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AutosignlyException.Connection("Interrupted while downloading " + subject, e);
+        }
+    }
 
     private record Multipart(String boundary, byte[] body) {}
 
@@ -462,17 +545,40 @@ public final class AutosignlyClient {
     private static byte[] multipart(String boundary, byte[] pdf, String fileName, String requestJson)
             throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
-        out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n")
-                .getBytes(StandardCharsets.UTF_8));
-        out.write("Content-Type: application/pdf\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-        out.write(pdf);
+        writeFilePart(out, boundary, pdf, fileName, "application/pdf");
         out.write(("\r\n--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
         out.write("Content-Disposition: form-data; name=\"request\"\r\n".getBytes(StandardCharsets.UTF_8));
         out.write("Content-Type: application/json\r\n\r\n".getBytes(StandardCharsets.UTF_8));
         out.write(requestJson.getBytes(StandardCharsets.UTF_8));
         out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         return out.toByteArray();
+    }
+
+    private static byte[] filePart(String boundary, byte[] content, String fileName, String contentType)
+            throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeFilePart(out, boundary, content, fileName, contentType);
+        out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return out.toByteArray();
+    }
+
+    private static void writeFilePart(
+            ByteArrayOutputStream out, String boundary, byte[] content, String fileName, String contentType)
+            throws IOException {
+        out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n")
+                .getBytes(StandardCharsets.UTF_8));
+        out.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(content);
+    }
+
+    /** The server detects the real format from the bytes; this is only a hint. */
+    private static String contentType(String fileName) {
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        return "application/octet-stream";
     }
 
     /** What to ask for when sending a document to signers. */

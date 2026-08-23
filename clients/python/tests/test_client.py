@@ -172,6 +172,116 @@ def test_upload_and_sign_posts_multipart_with_json_part():
     assert seen["idempotency"]
 
 
+def test_upload_pdf_stores_the_document_without_sending_it():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["body"] = request.content
+        return httpx.Response(200, json={"documentId": "doc-7"})
+
+    with build_client(handler) as client:
+        document_id = client.upload_pdf(pdf=b"%PDF-1.4 fake", document_name="Umowa", file_name="umowa.pdf")
+
+    assert document_id == "doc-7"
+    assert seen["url"].endswith("/documents")
+    assert b'name="request"' in seen["body"]
+    assert b"Umowa" in seen["body"]
+    assert b"signers" not in seen["body"]
+
+
+def test_list_attachments_parses_the_merge_order():
+    payload = [
+        {
+            "id": "att-1",
+            "orderIndex": 0,
+            "fileName": "photo.jpg",
+            "format": "JPEG",
+            "sizeBytes": 482913,
+            "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+            "pageCount": 1,
+            "status": "READY",
+            "fileUrl": "https://files.example/att-1.pdf",
+        },
+        {"id": "att-2", "orderIndex": 1, "fileName": "annex.pdf", "format": "PDF", "status": "READY"},
+    ]
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json=payload)
+
+    with build_client(handler) as client:
+        attachments = client.list_attachments("doc-1")
+
+    assert seen["url"].endswith("/documents/doc-1/attachments")
+    assert [a.id for a in attachments] == ["att-1", "att-2"]
+    assert [a.order_index for a in attachments] == [0, 1]
+    assert attachments[0].file_name == "photo.jpg"
+    assert attachments[0].page_count == 1
+    assert attachments[0].sha256.startswith("9f86d081")
+    assert attachments[1].page_count is None
+
+
+def test_add_attachment_posts_the_file_as_multipart():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["url"] = str(request.url)
+        seen["content_type"] = request.headers.get("content-type", "")
+        seen["body"] = request.content
+        return httpx.Response(200, json={"id": "att-1", "orderIndex": 0, "fileName": "photo.jpg"})
+
+    with build_client(handler) as client:
+        attachment = client.add_attachment("doc-1", content=b"\xff\xd8\xff fake jpeg", file_name="photo.jpg")
+
+    assert attachment.id == "att-1"
+    assert seen["method"] == "POST"
+    assert seen["url"].endswith("/documents/doc-1/attachments")
+    assert seen["content_type"].startswith("multipart/form-data")
+    assert b'name="file"' in seen["body"]
+    assert b"image/jpeg" in seen["body"]
+    assert b"fake jpeg" in seen["body"]
+
+
+def test_delete_attachment_targets_the_attachment():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["url"] = str(request.url)
+        return httpx.Response(204)
+
+    with build_client(handler) as client:
+        client.delete_attachment("doc-1", "att-1")
+
+    assert seen["method"] == "DELETE"
+    assert seen["url"].endswith("/documents/doc-1/attachments/att-1")
+
+
+def test_download_attachment_follows_the_converted_file_url():
+    def handler(request):
+        if request.url.path.endswith("/attachments"):
+            return httpx.Response(
+                200,
+                json=[{"id": "att-1", "fileUrl": "https://files.example/att-1.pdf"}],
+            )
+        return httpx.Response(200, content=b"%PDF converted")
+
+    with build_client(handler) as client:
+        assert client.download_attachment("doc-1", "att-1") == b"%PDF converted"
+
+
+def test_download_attachment_before_conversion_raises():
+    def handler(request):
+        return httpx.Response(200, json=[{"id": "att-1", "status": "FAILED"}])
+
+    with build_client(handler) as client:
+        with pytest.raises(NotFoundError):
+            client.download_attachment("doc-1", "att-1")
+
+
 def test_signer_payload_omits_empty_fields():
     payload = Signer(
         first_name="Anna", last_name="Nowak", email="anna@example.com", country="PL"

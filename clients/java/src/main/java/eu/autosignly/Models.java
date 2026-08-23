@@ -111,6 +111,25 @@ public final class Models {
         }
     }
 
+    /**
+     * A file attached to a document.
+     *
+     * <p>Attachments are converted to PDF and merged into the document when it is
+     * sent for signing, behind an index page listing each one with its checksum,
+     * so a single signature covers the document and everything attached to it.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Attachment(
+            String id,
+            int orderIndex,
+            String fileName,
+            String format,
+            long sizeBytes,
+            String sha256,
+            Integer pageCount,
+            String status,
+            String fileUrl) {}
+
     /** A document as it appears in a list — no signers, no file link. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocumentSummary(

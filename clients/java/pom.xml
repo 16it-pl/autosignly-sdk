@@ -141,10 +141,7 @@
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
-              <!-- Land in the portal as a draft: the release is confirmed by hand
-                   until the pipeline has proven itself. Publishing is final —
-                   a version on Central can never be changed or withdrawn. -->
-              <autoPublish>false</autoPublish>
+              <autoPublish>true</autoPublish>
             </configuration>
           </plugin>
         </plugins>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import random
 import time
 import uuid
@@ -13,6 +14,7 @@ import httpx
 from . import errors
 from ._version import __version__
 from .models import (
+    Attachment,
     Credentials,
     Document,
     DocumentSummary,
@@ -153,14 +155,68 @@ class AutosignlyClient:
                 status_code=404,
             )
 
-        try:
-            response = self._http.get(document.file_url)
-        except httpx.TransportError as exc:
-            raise errors.ConnectionError(f"Could not download {document_id}: {exc}") from exc
+        return self._download(document.file_url, document_id)
 
-        if response.status_code >= 400:
-            raise _to_error(response)
-        return response.content
+    def upload_pdf(self, *, pdf: bytes, document_name: str, file_name: str = "document.pdf") -> str:
+        """Store a PDF as a document without sending it to anyone.
+
+        Returns the identifier of the created document. Use this when the
+        document needs attachments before it goes out: upload it, attach the
+        files with :meth:`add_attachment`, then call :meth:`send_for_signing`.
+        A document that has already been sent can no longer take attachments.
+        """
+        files = {
+            "file": (file_name, pdf, "application/pdf"),
+            "request": (None, json.dumps({"documentName": document_name}), "application/json"),
+        }
+        payload = self._request("POST", "/documents", files=files)
+        return payload.get("documentId", "")
+
+    # -- attachments ---------------------------------------------------------
+
+    def list_attachments(self, document_id: str) -> list[Attachment]:
+        """Return the attachments of a document, in the order they will merge."""
+        payload = self._request("GET", f"/documents/{document_id}/attachments")
+        return [Attachment.from_payload(item) for item in payload or []]
+
+    def add_attachment(
+        self,
+        document_id: str,
+        *,
+        content: bytes,
+        file_name: str,
+    ) -> Attachment:
+        """Attach a file to a document that has not been sent for signing yet.
+
+        The file is converted to PDF and merged into the document when it is
+        sent, behind an index page carrying its checksum, so one signature
+        covers the document and everything attached to it. PDF, JPEG and PNG
+        are accepted, recognised from the content rather than the file name.
+        Attachments merge in the order they were added.
+        """
+        files = {"file": (file_name, content, _content_type(file_name))}
+        payload = self._request("POST", f"/documents/{document_id}/attachments", files=files)
+        return Attachment.from_payload(payload)
+
+    def delete_attachment(self, document_id: str, attachment_id: str) -> None:
+        """Remove an attachment from a document not yet sent for signing."""
+        self._request("DELETE", f"/documents/{document_id}/attachments/{attachment_id}")
+
+    def download_attachment(self, document_id: str, attachment_id: str) -> bytes:
+        """Fetch one attachment converted to PDF — the rendition that gets merged."""
+        for attachment in self.list_attachments(document_id):
+            if attachment.id != attachment_id:
+                continue
+            if not attachment.file_url:
+                raise errors.NotFoundError(
+                    f"Attachment {attachment_id} is not converted yet",
+                    status_code=404,
+                )
+            return self._download(attachment.file_url, attachment_id)
+        raise errors.NotFoundError(
+            f"Document {document_id} has no attachment {attachment_id}",
+            status_code=404,
+        )
 
     def send_for_signing(
         self,
@@ -194,7 +250,7 @@ class AutosignlyClient:
                 "locale": initiator_locale,
             }
 
-        payload = self._request("POST", f"/documents/{document_id}/send-for-signing", json_body=body)
+        payload = self._request("POST", f"/documents/{document_id}/signings", json_body=body)
         return SigningRequestResult.from_payload(payload)
 
     def upload_and_sign(
@@ -282,6 +338,16 @@ class AutosignlyClient:
 
     # -- transport -----------------------------------------------------------
 
+    def _download(self, url: str, subject: str) -> bytes:
+        try:
+            response = self._http.get(url)
+        except httpx.TransportError as exc:
+            raise errors.ConnectionError(f"Could not download {subject}: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise _to_error(response)
+        return response.content
+
     def _request(
         self,
         method: str,
@@ -326,6 +392,12 @@ class AutosignlyClient:
             return _decode(response)
 
         raise errors.ConnectionError(f"Could not reach {url}: {last_error}")
+
+
+def _content_type(file_name: str) -> str:
+    """The server detects the real format from the bytes; this is only a hint."""
+    guessed, _ = mimetypes.guess_type(file_name)
+    return guessed or "application/octet-stream"
 
 
 def _backoff(attempt: int) -> float:

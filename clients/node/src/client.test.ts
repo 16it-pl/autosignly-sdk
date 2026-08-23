@@ -178,6 +178,105 @@ test("uploadAndSign posts the pdf and the request as multipart", async () => {
   assert.equal((form.get("file") as File).name, "umowa.pdf");
 });
 
+test("uploadPdf stores the document without sending it", async () => {
+  const { client, calls } = buildClient(() => json({ documentId: "d-7" }));
+
+  const documentId = await client.uploadPdf({
+    pdf: new Uint8Array([37, 80, 68, 70]),
+    documentName: "Umowa",
+    fileName: "umowa.pdf",
+  });
+
+  assert.equal(documentId, "d-7");
+  assert.ok(calls[0].url.endsWith("/documents"));
+  const form = calls[0].body as FormData;
+  const request = JSON.parse(await (form.get("request") as Blob).text());
+  assert.deepEqual(request, { documentName: "Umowa" });
+  assert.equal((form.get("file") as File).name, "umowa.pdf");
+});
+
+test("listAttachments parses the merge order", async () => {
+  const { client, calls } = buildClient(() =>
+    json([
+      {
+        id: "att-1",
+        orderIndex: 0,
+        fileName: "photo.jpg",
+        format: "JPEG",
+        sizeBytes: 482913,
+        sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        pageCount: 1,
+        status: "READY",
+        fileUrl: "https://files.test/att-1.pdf",
+      },
+      { id: "att-2", orderIndex: 1, fileName: "annex.pdf", format: "PDF", status: "READY" },
+    ]),
+  );
+
+  const attachments = await client.listAttachments("d-1");
+
+  assert.ok(calls[0].url.endsWith("/documents/d-1/attachments"));
+  assert.deepEqual(
+    attachments.map((attachment) => attachment.id),
+    ["att-1", "att-2"],
+  );
+  assert.deepEqual(
+    attachments.map((attachment) => attachment.orderIndex),
+    [0, 1],
+  );
+  assert.equal(attachments[0].pageCount, 1);
+  assert.equal(attachments[0].sizeBytes, 482913);
+  assert.equal(attachments[1].pageCount, undefined);
+});
+
+test("addAttachment posts the file as multipart", async () => {
+  const { client, calls } = buildClient(() =>
+    json({ id: "att-1", orderIndex: 0, fileName: "photo.jpg", status: "READY" }),
+  );
+
+  const attachment = await client.addAttachment("d-1", {
+    content: new Uint8Array([255, 216, 255, 224]),
+    fileName: "photo.jpg",
+  });
+
+  assert.equal(attachment.id, "att-1");
+  assert.equal(calls[0].method, "POST");
+  assert.ok(calls[0].url.endsWith("/documents/d-1/attachments"));
+  const form = calls[0].body as FormData;
+  assert.ok(form instanceof FormData);
+  const file = form.get("file") as File;
+  assert.equal(file.name, "photo.jpg");
+  assert.equal(file.type, "image/jpeg");
+  assert.equal(new Uint8Array(await file.arrayBuffer())[0], 255);
+});
+
+test("deleteAttachment targets the attachment", async () => {
+  const { client, calls } = buildClient(() => new Response(null, { status: 204 }));
+
+  await client.deleteAttachment("d-1", "att-1");
+
+  assert.equal(calls[0].method, "DELETE");
+  assert.ok(calls[0].url.endsWith("/documents/d-1/attachments/att-1"));
+});
+
+test("downloadAttachment follows the converted file link", async () => {
+  const { client } = buildClient((call) =>
+    call.url.endsWith("/attachments")
+      ? json([{ id: "att-1", fileUrl: "https://files.test/att-1.pdf" }])
+      : new Response(new Uint8Array([37, 80, 68, 70])),
+  );
+
+  const bytes = await client.downloadAttachment("d-1", "att-1");
+
+  assert.deepEqual([...bytes], [37, 80, 68, 70]);
+});
+
+test("downloadAttachment reports an attachment that is not converted yet", async () => {
+  const { client } = buildClient(() => json([{ id: "att-1", status: "FAILED" }]));
+
+  await assert.rejects(() => client.downloadAttachment("d-1", "att-1"), NotFoundError);
+});
+
 test("a write carries an idempotency key, a read does not", async () => {
   const { client, calls } = buildClient(() => json({ id: "t-1", name: "Umowy" }));
 

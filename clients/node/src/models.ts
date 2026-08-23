@@ -50,6 +50,19 @@ export const DocumentStatus = {
   CANCELLED: "CANCELLED",
 } as const;
 
+export const AttachmentFormat = {
+  PDF: "PDF",
+  JPEG: "JPEG",
+  PNG: "PNG",
+} as const;
+
+export const AttachmentStatus = {
+  /** Converted to PDF and ready to be merged. */
+  READY: "READY",
+  /** Conversion failed; the attachment is skipped when the document is signed. */
+  FAILED: "FAILED",
+} as const;
+
 export const SigningStatus = {
   SENT: "SENT",
   AWAITING_SIGNATURE: "AWAITING_SIGNATURE",
@@ -135,6 +148,25 @@ export interface Document {
   fileUrl?: string;
 }
 
+/**
+ * A file attached to a document.
+ *
+ * Attachments are converted to PDF and merged into the document when it is sent
+ * for signing, behind an index page listing each one with its checksum, so a
+ * single signature covers the document and everything attached to it.
+ */
+export interface Attachment {
+  id: string;
+  orderIndex: number;
+  fileName?: string;
+  format?: string;
+  sizeBytes: number;
+  sha256?: string;
+  pageCount?: number;
+  status?: string;
+  fileUrl?: string;
+}
+
 /** A document as it appears in a list — no signers, no file link. */
 export interface DocumentSummary {
   id: string;
@@ -199,6 +231,20 @@ export function toSignerStatus(payload: Json): SignerStatus {
 }
 
 const list = (value: unknown): Json[] => (Array.isArray(value) ? (value as Json[]) : []);
+
+export function toAttachment(payload: Json): Attachment {
+  return {
+    id: String(payload.id ?? ""),
+    orderIndex: typeof payload.orderIndex === "number" ? payload.orderIndex : 0,
+    fileName: str(payload.fileName),
+    format: str(payload.format),
+    sizeBytes: typeof payload.sizeBytes === "number" ? payload.sizeBytes : 0,
+    sha256: str(payload.sha256),
+    pageCount: typeof payload.pageCount === "number" ? payload.pageCount : undefined,
+    status: str(payload.status),
+    fileUrl: str(payload.fileUrl),
+  };
+}
 
 export function toDocument(payload: Json): Document {
   return {

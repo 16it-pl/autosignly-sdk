@@ -18,6 +18,7 @@ import yaml
 
 from autosignly.client import _to_page
 from autosignly.models import (
+    Attachment,
     Credentials,
     Document,
     DocumentSummary,
@@ -65,6 +66,7 @@ def keys_read_by(parse: Callable[[dict], Any]) -> set[str]:
 
 
 PARSERS = [
+    ("Attachment", "AttachmentResponse", Attachment.from_payload),
     ("Document", "DocumentInfoResponse", Document.from_payload),
     ("DocumentSummary", "DocumentListItemResponse", DocumentSummary.from_payload),
     ("SignerDetails", "SignerResponse", SignerDetails.from_payload),
@@ -114,8 +116,10 @@ def test_every_endpoint_the_client_calls_exists() -> None:
         "/api/publics/v1/credentials",
         "/api/publics/v1/documents",
         "/api/publics/v1/documents/{documentId}",
+        "/api/publics/v1/documents/{documentId}/attachments",
+        "/api/publics/v1/documents/{documentId}/attachments/{attachmentId}",
         "/api/publics/v1/documents/signings",
-        "/api/publics/v1/documents/{documentId}/send-for-signing",
+        "/api/publics/v1/documents/{documentId}/signings",
         "/api/publics/v1/documents/{documentId}/tags",
         "/api/publics/v1/tags",
         "/api/publics/v1/tags/{tagId}",

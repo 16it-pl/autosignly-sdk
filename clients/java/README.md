@@ -69,6 +69,39 @@ a fresh one rather than storing it. `downloadDocument` does that for you.
 A document can be downloaded while signing is still in progress; it then carries
 only the signatures collected so far.
 
+## Attachments
+
+Files attached to a document are converted to PDF and merged into it when it is
+sent for signing, behind an index page listing each one with its checksum — so a
+single signature covers the document and everything attached to it.
+
+Attachments can only be added before the document is sent, so upload it first and
+send it afterwards instead of using `uploadAndSign`:
+
+```java
+String documentId = client.uploadPdf(
+        Files.readAllBytes(Path.of("protocol.pdf")), "Handover protocol", "protocol.pdf");
+
+var attachment = client.addAttachment(
+        documentId, Files.readAllBytes(Path.of("site-photo.jpg")), "site-photo.jpg");
+
+for (var existing : client.listAttachments(documentId)) {
+    System.out.println(existing.fileName() + " " + existing.orderIndex() + " " + existing.sha256());
+}
+
+client.sendForSigning(documentId, SigningOptions.of(signers));
+```
+
+An attachment can be dropped again while the document is still unsent:
+
+```java
+client.deleteAttachment(documentId, attachment.id());
+```
+
+PDF, JPEG and PNG are accepted, recognised from the content rather than the file
+name. Attachments merge in the order they were added, and can only be changed
+before the document is sent for signing.
+
 ## Listing
 
 ```java

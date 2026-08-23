@@ -14,6 +14,7 @@ import {
   ValidationError,
 } from "./errors.js";
 import {
+  type Attachment,
   type Credentials,
   type Document,
   type DocumentSummary,
@@ -22,6 +23,7 @@ import {
   type SigningRequestResult,
   type Tag,
   signerToPayload,
+  toAttachment,
   toCredentials,
   toDocument,
   toDocumentSummary,
@@ -183,17 +185,90 @@ export class AutosignlyClient {
       });
     }
 
-    let response: Response;
-    try {
-      response = await this.#fetch(document.fileUrl, {
-        signal: AbortSignal.timeout(this.#timeout),
-      });
-    } catch (cause) {
-      throw new ConnectionError(`Could not download ${documentId}: ${describe(cause)}`);
-    }
+    return this.#download(document.fileUrl, documentId);
+  }
 
-    if (!response.ok) throw await toError(response);
-    return new Uint8Array(await response.arrayBuffer());
+  /**
+   * Store a PDF as a document without sending it to anyone.
+   *
+   * Returns the identifier of the created document. Use this when the document
+   * needs attachments before it goes out: upload it, attach the files with
+   * {@link addAttachment}, then call {@link sendForSigning}. A document that has
+   * already been sent can no longer take attachments.
+   */
+  async uploadPdf(options: { pdf: Uint8Array; documentName: string; fileName?: string }): Promise<string> {
+    const form = new FormData();
+    // Copy into a fresh ArrayBuffer, for the same reason as in uploadAndSign.
+    const pdf = options.pdf.slice().buffer;
+    form.append("file", new Blob([pdf], { type: "application/pdf" }), options.fileName ?? "document.pdf");
+    form.append(
+      "request",
+      new Blob([JSON.stringify({ documentName: options.documentName })], { type: "application/json" }),
+    );
+
+    const payload = await this.#request<Json>("POST", "/documents", { form });
+    return String(payload?.documentId ?? "");
+  }
+
+  // -- attachments ---------------------------------------------------------
+
+  /** Return the attachments of a document, in the order they will merge. */
+  async listAttachments(documentId: string): Promise<Attachment[]> {
+    const payload = await this.#request<Json[]>("GET", `/documents/${documentId}/attachments`);
+    return (payload ?? []).map(toAttachment);
+  }
+
+  /**
+   * Attach a file to a document that has not been sent for signing yet.
+   *
+   * The file is converted to PDF and merged into the document when it is sent,
+   * behind an index page carrying its checksum, so one signature covers the
+   * document and everything attached to it. PDF, JPEG and PNG are accepted,
+   * recognised from the content rather than the file name. Attachments merge in
+   * the order they were added.
+   */
+  async addAttachment(
+    documentId: string,
+    options: { content: Uint8Array; fileName: string },
+  ): Promise<Attachment> {
+    const form = new FormData();
+    // Copy into a fresh ArrayBuffer, for the same reason as in uploadAndSign.
+    const content = options.content.slice().buffer;
+    form.append(
+      "file",
+      new Blob([content], { type: contentType(options.fileName) }),
+      options.fileName,
+    );
+
+    const payload = await this.#request<Json>(
+      "POST",
+      `/documents/${documentId}/attachments`,
+      { form },
+    );
+    return toAttachment(payload ?? {});
+  }
+
+  /** Remove an attachment from a document not yet sent for signing. */
+  async deleteAttachment(documentId: string, attachmentId: string): Promise<void> {
+    await this.#request<void>("DELETE", `/documents/${documentId}/attachments/${attachmentId}`);
+  }
+
+  /** Fetch one attachment converted to PDF — the rendition that gets merged. */
+  async downloadAttachment(documentId: string, attachmentId: string): Promise<Uint8Array> {
+    const attachment = (await this.listAttachments(documentId)).find(
+      (candidate) => candidate.id === attachmentId,
+    );
+    if (!attachment) {
+      throw new NotFoundError(`Document ${documentId} has no attachment ${attachmentId}`, {
+        statusCode: 404,
+      });
+    }
+    if (!attachment.fileUrl) {
+      throw new NotFoundError(`Attachment ${attachmentId} is not converted yet`, {
+        statusCode: 404,
+      });
+    }
+    return this.#download(attachment.fileUrl, attachmentId);
   }
 
   /** Send an existing document to the given signers. */
@@ -203,7 +278,7 @@ export class AutosignlyClient {
   ): Promise<SigningRequestResult> {
     const payload = await this.#request<Json>(
       "POST",
-      `/documents/${documentId}/send-for-signing`,
+      `/documents/${documentId}/signings`,
       { json: buildSigningRequest(options) },
     );
     return toSigningRequestResult(payload ?? {});
@@ -276,6 +351,18 @@ export class AutosignlyClient {
 
   // -- transport -----------------------------------------------------------
 
+  async #download(url: string, subject: string): Promise<Uint8Array> {
+    let response: Response;
+    try {
+      response = await this.#fetch(url, { signal: AbortSignal.timeout(this.#timeout) });
+    } catch (cause) {
+      throw new ConnectionError(`Could not download ${subject}: ${describe(cause)}`);
+    }
+
+    if (!response.ok) throw await toError(response);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   async #request<T>(
     method: string,
     path: string,
@@ -321,6 +408,19 @@ export class AutosignlyClient {
 
     throw new ConnectionError(`Could not reach ${url}: ${describe(lastError)}`);
   }
+}
+
+const CONTENT_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+};
+
+/** The server detects the real format from the bytes; this is only a hint. */
+function contentType(fileName: string): string {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  return CONTENT_TYPES[extension] ?? "application/octet-stream";
 }
 
 function toArray(value: string | string[] | undefined): string[] {

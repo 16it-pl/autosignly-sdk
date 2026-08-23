@@ -64,6 +64,23 @@ class DocumentStatus:
     CANCELLED = "CANCELLED"
 
 
+class AttachmentFormat:
+    """Format of an attached file, detected from its content."""
+
+    PDF = "PDF"
+    JPEG = "JPEG"
+    PNG = "PNG"
+
+
+class AttachmentStatus:
+    """Whether an attachment is ready to be merged into the document."""
+
+    #: Converted to PDF and ready to be merged.
+    READY = "READY"
+    #: Conversion failed; the attachment is skipped when the document is signed.
+    FAILED = "FAILED"
+
+
 class SigningStatus:
     """State of an individual signer within a signing request."""
 
@@ -181,6 +198,40 @@ class SignerDetails:
             signature_type=payload.get("signatureType"),
             signature_verification_method=payload.get("signatureVerificationMethod"),
             signing_order=payload.get("signingOrder"),
+        )
+
+
+@dataclass(slots=True)
+class Attachment:
+    """A file attached to a document.
+
+    Attachments are converted to PDF and merged into the document when it is
+    sent for signing, behind an index page listing each one with its checksum,
+    so a single signature covers the document and everything attached to it.
+    """
+
+    id: str
+    order_index: int = 0
+    file_name: str | None = None
+    format: str | None = None
+    size_bytes: int = 0
+    sha256: str | None = None
+    page_count: int | None = None
+    status: str | None = None
+    file_url: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "Attachment":
+        return cls(
+            id=payload["id"],
+            order_index=payload.get("orderIndex", 0),
+            file_name=payload.get("fileName"),
+            format=payload.get("format"),
+            size_bytes=payload.get("sizeBytes", 0),
+            sha256=payload.get("sha256"),
+            page_count=payload.get("pageCount"),
+            status=payload.get("status"),
+            file_url=payload.get("fileUrl"),
         )
 
 

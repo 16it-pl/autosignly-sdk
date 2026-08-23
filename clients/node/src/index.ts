@@ -30,6 +30,8 @@ export {
   ValidationError,
 } from "./errors.js";
 export {
+  AttachmentFormat,
+  AttachmentStatus,
   DocumentStatus,
   EnvironmentType,
   SignatureMode,
@@ -39,6 +41,7 @@ export {
   VerificationMethod,
 } from "./models.js";
 export type {
+  Attachment,
   Credentials,
   Document,
   DocumentSummary,

@@ -21,6 +21,7 @@ import { parse as parseYaml } from "yaml";
 import { AutosignlyClient } from "./client.js";
 import {
   signerToPayload,
+  toAttachment,
   toCredentials,
   toDocument,
   toDocumentSummary,
@@ -59,6 +60,7 @@ function keysReadBy(parser: (payload: never) => unknown): string[] {
 }
 
 const PARSERS: [string, string, (payload: never) => unknown][] = [
+  ["toAttachment", "AttachmentResponse", toAttachment],
   ["toDocument", "DocumentInfoResponse", toDocument],
   ["toDocumentSummary", "DocumentListItemResponse", toDocumentSummary],
   ["toSignerDetails", "SignerResponse", toSignerDetails],
@@ -153,8 +155,10 @@ test("every endpoint the client calls exists in the spec", () => {
     "/api/publics/v1/credentials",
     "/api/publics/v1/documents",
     "/api/publics/v1/documents/{documentId}",
+    "/api/publics/v1/documents/{documentId}/attachments",
+    "/api/publics/v1/documents/{documentId}/attachments/{attachmentId}",
     "/api/publics/v1/documents/signings",
-    "/api/publics/v1/documents/{documentId}/send-for-signing",
+    "/api/publics/v1/documents/{documentId}/signings",
     "/api/publics/v1/documents/{documentId}/tags",
     "/api/publics/v1/tags",
     "/api/publics/v1/tags/{tagId}",

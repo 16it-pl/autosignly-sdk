@@ -26,6 +26,9 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    Attachment,
+    AttachmentFormat,
+    AttachmentStatus,
     Credentials,
     Document,
     DocumentStatus,
@@ -56,6 +59,9 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "ValidationError",
+    "Attachment",
+    "AttachmentFormat",
+    "AttachmentStatus",
     "Credentials",
     "Document",
     "DocumentStatus",

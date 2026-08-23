@@ -47,6 +47,21 @@ public final class Constants {
         public static final String CANCELLED = "CANCELLED";
     }
 
+    public static final class AttachmentFormat {
+        private AttachmentFormat() {}
+        public static final String PDF = "PDF";
+        public static final String JPEG = "JPEG";
+        public static final String PNG = "PNG";
+    }
+
+    public static final class AttachmentStatus {
+        private AttachmentStatus() {}
+        /** Converted to PDF and ready to be merged. */
+        public static final String READY = "READY";
+        /** Conversion failed; the attachment is skipped when the document is signed. */
+        public static final String FAILED = "FAILED";
+    }
+
     public static final class EnvironmentType {
         private EnvironmentType() {}
         public static final String PROD = "PROD";

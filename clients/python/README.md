@@ -65,6 +65,44 @@ open("signed.pdf", "wb").write(pdf)
 A document that is still being signed can be downloaded as well - it then carries only the
 signatures collected so far.
 
+## Attachments
+
+Files attached to a document are converted to PDF and merged into it when it is sent for
+signing, behind an index page listing each one with its checksum — so a single signature
+covers the document and everything attached to it.
+
+Attachments can only be added before the document is sent, so upload it first and send it
+afterwards instead of using `upload_and_sign`:
+
+```python
+document_id = client.upload_pdf(
+    pdf=open("protocol.pdf", "rb").read(),
+    document_name="Handover protocol",
+)
+
+attachment = client.add_attachment(
+    document_id,
+    content=open("site-photo.jpg", "rb").read(),
+    file_name="site-photo.jpg",
+)
+print(attachment.order_index, attachment.sha256)
+
+for existing in client.list_attachments(document_id):
+    print(existing.file_name, existing.page_count)
+
+client.send_for_signing(document_id, signers=[signer])
+```
+
+An attachment can be dropped again while the document is still unsent:
+
+```python
+client.delete_attachment(document_id, attachment.id)
+```
+
+PDF, JPEG and PNG are accepted, recognised from the content rather than the file name.
+Attachments merge in the order they were added, and can only be changed before the document
+is sent for signing.
+
 ## Tags
 
 ```python
