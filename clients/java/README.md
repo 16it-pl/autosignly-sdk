@@ -115,6 +115,14 @@ for (var summary : client.iterateDocuments(100, null)) {
 `iterateDocuments` fetches pages as the iterator advances, so a large
 environment never has to be held in memory at once.
 
+Both calls have an overload taking tag ids. Several tags narrow the result — a
+document has to carry all of them — and a tag that does not exist gives an empty
+page rather than an error:
+
+```java
+var tagged = client.listDocuments(0, 50, List.of(DocumentStatus.SIGNED), List.of(tagId));
+```
+
 ## Webhooks
 
 Autosignly signs every delivery with `X-Webhook-Signature` and

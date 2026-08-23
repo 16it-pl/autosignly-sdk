@@ -103,6 +103,34 @@ def test_list_documents_parses_page_and_sends_filters():
     assert ("status", "GENERATED") in seen["params"]
 
 
+def test_list_documents_repeats_the_tag_filter():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"content": [], "page": {"number": 0, "size": 20, "totalElements": 0, "totalPages": 0}})
+
+    with build_client(handler) as client:
+        client.list_documents(tag_id=["tag-1", "tag-2"], status="SIGNED")
+
+    assert "tagId=tag-1" in seen["url"]
+    assert "tagId=tag-2" in seen["url"]
+    assert "status=SIGNED" in seen["url"]
+
+
+def test_list_documents_accepts_a_single_tag():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"content": [], "page": {"number": 0, "size": 20, "totalElements": 0, "totalPages": 0}})
+
+    with build_client(handler) as client:
+        client.list_documents(tag_id="tag-1")
+
+    assert seen["url"].count("tagId=") == 1
+
+
 def test_iter_documents_follows_pages():
     pages = {
         "0": {

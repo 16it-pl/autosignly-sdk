@@ -73,7 +73,7 @@ PARSERS = [
     ("SignerStatus", "SignerStatusResponse", SignerStatus.from_payload),
     ("Credentials", "CredentialsResponse", Credentials.from_payload),
     ("SigningRequestResult", "SendForSigningResponse", SigningRequestResult.from_payload),
-    ("Tag", "TagResponse1", Tag.from_payload),
+    ("Tag", "TagResponse", Tag.from_payload),
 ]
 
 
@@ -108,6 +108,15 @@ def test_signer_sends_only_fields_the_api_accepts() -> None:
 
     unknown = sorted(set(payload) - properties_of("ExternalSignerRequest"))
     assert unknown == [], f"unknown signer fields: {', '.join(unknown)}"
+
+
+def test_document_filters_the_client_sends_exist() -> None:
+    declared = {
+        param["name"]
+        for param in SPEC["paths"]["/api/publics/v1/documents"]["get"]["parameters"]
+    }
+
+    assert {"status", "tagId", "page", "size", "sort"} <= declared
 
 
 def test_every_endpoint_the_client_calls_exists() -> None:

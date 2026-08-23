@@ -127,6 +127,14 @@ for await (const document of client.iterDocuments({ status: "SIGNED" })) {
 `iterDocuments` fetches pages as the iterator advances, so a large environment
 never has to be held in memory at once.
 
+Both calls take `tagId` as well. Several tags narrow the result — a document has
+to carry all of them — and a tag that does not exist gives an empty page rather
+than an error:
+
+```ts
+const tagged = await client.listDocuments({ tagId: ["contracts", "2026"], status: "SIGNED" });
+```
+
 ## Webhooks
 
 Autosignly signs every delivery with `X-Webhook-Signature` and

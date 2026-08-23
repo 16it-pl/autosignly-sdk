@@ -138,7 +138,7 @@ components:
         tags:
           description: Tags assigned to the document.
           items:
-            $ref: '#/components/schemas/TagResponse1'
+            $ref: '#/components/schemas/TagResponse'
           type: array
       type: object
     DocumentListItemResponse:
@@ -171,7 +171,7 @@ components:
         tags:
           description: Tags assigned to the document.
           items:
-            $ref: '#/components/schemas/TagResponse1'
+            $ref: '#/components/schemas/TagResponse'
           type: array
       type: object
     DocumentSigningMode:
@@ -349,7 +349,7 @@ components:
       properties:
         content:
           items:
-            $ref: '#/components/schemas/TagResponse1'
+            $ref: '#/components/schemas/TagResponse'
           type: array
         page:
           $ref: '#/components/schemas/PageInfo'
@@ -564,7 +564,7 @@ components:
       required:
       - name
       type: object
-    TagResponse1:
+    TagResponse:
       description: Company tag. Tags group documents and templates; a document generated from a template inherits its tags.
       properties:
         color:
@@ -672,16 +672,6 @@ components:
       examples:
       - SMS
       type: string
-  securitySchemes:
-    SecurityScheme:
-      bearerFormat: JWT
-      description: Authentication
-      scheme: bearer
-      type: http
-    bearerAuth:
-      bearerFormat: JWT
-      scheme: bearer
-      type: http
 info:
   title: Autodocuments API
   version: v1
@@ -698,7 +688,6 @@ paths:
         '
       parameters:
       - description: API key to validate
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -764,7 +753,7 @@ paths:
   /api/publics/v1/documents:
     get:
       description: 'Returns a paged list of documents belonging to the company identified by the API key. Optionally filter
-        by one or more statuses. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
+        by one or more statuses, by tag, or by both. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
 
         '
       parameters:
@@ -793,8 +782,15 @@ paths:
           items:
             $ref: '#/components/schemas/DocumentStatus'
           type: array
+      - description: 'Filter by tag. Repeat for multiple tags, e.g. tagId=a&tagId=b. Several tags narrow the result: a document
+          must carry all of them. A tag that does not exist yields an empty page rather than an error.'
+        in: query
+        name: tagId
+        schema:
+          items:
+            type: string
+          type: array
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1032,7 +1028,6 @@ paths:
         schema:
           type: string
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1253,7 +1248,6 @@ paths:
         schema:
           type: string
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1316,7 +1310,6 @@ paths:
         schema:
           type: string
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1342,7 +1335,7 @@ paths:
             application/json:
               schema:
                 items:
-                  $ref: '#/components/schemas/TagResponse1'
+                  $ref: '#/components/schemas/TagResponse'
                 type: array
           description: Tags the document carries after the change
         '400':
@@ -1389,7 +1382,6 @@ paths:
             type: string
           type: array
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1424,7 +1416,6 @@ paths:
         '
       parameters:
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1449,7 +1440,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TagResponse1'
+                $ref: '#/components/schemas/TagResponse'
           description: Tag added, or the already existing one returned
         '400':
           description: Name is blank, longer than 15 characters, or a header is missing
@@ -1472,7 +1463,6 @@ paths:
         schema:
           type: string
       - description: API key identifying the calling company
-        example: api_0XHLWp0eu5VRxdWJ_xcG-_zqUUZW640Xl07-KkOXhxw
         in: header
         name: X-API-KEY
         required: true
@@ -1498,74 +1488,9 @@ paths:
       summary: Delete tag
       tags:
       - Public API – tags
-security:
-- bearerAuth: []
 tags:
-- description: Manually trigger background batch jobs (admin only).
-  name: Admin schedulers
-- description: Manage the trusted-timestamp (KIR TST) pool counter (admin only).
-  name: Admin timestamp pool
-- description: QES signing endpoints for AutoSignly desktop app
-  name: DesktopSigning
-- description: 'Attachments of a document. Every attachment is converted to PDF on upload and merged into the document (after
-    an attachment index page, before the signature card) at the moment the document is sent to sign, so the electronic signature
-    covers the attachments as well. Supported formats: PDF, JPEG, PNG — detected from the file content, not from the file
-    name. Attachments can only be added, removed or reordered while the document has not been sent to sign yet.'
-  name: Document attachments
-- description: Order court-grade signature audit certificates sealed with QESeal; delivery is by email.
-  name: Document signature certificates
-- description: Preview signers and send document for signing. GET /preview returns document status; request body for POST
-    /send is conditional on that status.
-  name: Document signatures
-- description: Add, edit and delete individual signers on a document in SIGNERS_ASSIGNED, WAITING_FOR_SIGNATURE, or SIGNING_IN_PROGRESS
-    status.
-  name: Document signers
-- description: Lookup private (non-business) suppliers when filling supplier data on document forms.
-  name: Document suppliers
-- description: Create documents from template (generate/preview) or from uploaded PDF (upload). List, get, rename and delete
-    documents.
-  name: Documents
-- description: Public test-only endpoints for frontend E2E suites.
-  name: E2E local helpers
-- description: Polymorphic folder tree shared by company documents (scope=COMPANY) and per-user documents (scope=USER).
-  name: Folders
-- name: Integrity Sign
-- description: Operations related to notification rules for documents (global and per-document).
-  name: Notifications
 - description: Endpoints accessible via API key + secret (X-API-KEY and X-API-SECRET headers). No user login token required.
   name: Public API – document signing
 - description: Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key decides the
     environment, so a sandbox key never sees production tags.
   name: Public API – tags
-- description: Public AutoSignly configuration for the signing page.
-  name: PublicAutosignly
-- description: Public endpoints for viewing the signing page and signing documents by signer link.
-  name: PublicSignature
-- description: Public endpoint for validating electronic signatures on an uploaded PDF.
-  name: PublicSignatureValidation
-- description: WebAuthn signing endpoints for public (unauthenticated) signer links.
-  name: PublicWebAuthn
-- description: Authenticated sign page data (non-anonymized).
-  name: Signature page
-- description: Fetch which signature types and AES verification methods the user may choose in send-to-sign, add/edit signer
-    forms, and related signing UI.
-  name: Signature policy
-- description: Per-user TEE/Secure Enclave public keys used to verify biometric signatures from the autodokumenty-mobile app.
-    Mobile generates an EC P-256 keypair in the secure element, biometric-gated, and registers the public half here. The private
-    key never leaves the device.
-  name: Signing Device Keys
-- description: Operations related to available system variables.
-  name: System Variables
-- description: Company-wide tag list. Tags are assigned to documents and templates (PUT /documents/{id}/tags, PUT /templates/{id}/tags)
-    and can be used as list filters. Tags are stored in plaintext so they can be filtered on.
-  name: Tags
-- description: Per-user document copies. Use status=TO_SIGN for documents pending the user's signature, status=SIGNED for
-    fully-signed documents.
-  name: User Documents
-- description: Initiate verification (SMS code or WK redirect) before signing.
-  name: Verification
-- description: Authentication via Węzeł Krajowy - login, session data, logout. All endpoints (except public callback) require
-    companyId for company-scoped verification.
-  name: Węzeł Krajowy (WK)
-- description: Public callbacks from Węzeł Krajowy. No authentication required.
-  name: Węzeł Krajowy (WK) - Public

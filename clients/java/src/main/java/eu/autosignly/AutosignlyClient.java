@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -139,10 +140,26 @@ public final class AutosignlyClient {
 
     /** Return one page of documents belonging to this environment. */
     public Page<DocumentSummary> listDocuments(int page, int size, List<String> statuses) {
+        return listDocuments(page, size, statuses, null);
+    }
+
+    /**
+     * One page of documents, narrowed by status, by tag, or by both.
+     *
+     * <p>Several tags narrow the result: a document has to carry all of them. A tag
+     * that does not exist yields an empty page rather than an error.
+     */
+    public Page<DocumentSummary> listDocuments(
+            int page, int size, List<String> statuses, List<String> tagIds) {
         StringBuilder query = new StringBuilder("/documents?page=" + page + "&size=" + size);
         if (statuses != null) {
             for (String status : statuses) {
                 query.append("&status=").append(status);
+            }
+        }
+        if (tagIds != null) {
+            for (String tagId : tagIds) {
+                query.append("&tagId=").append(URLEncoder.encode(tagId, StandardCharsets.UTF_8));
             }
         }
         return toPage(request("GET", query.toString(), null, null), DocumentSummary.class);
@@ -160,8 +177,13 @@ public final class AutosignlyClient {
      * not have to be held in memory at once.
      */
     public Iterable<DocumentSummary> iterateDocuments(int size, List<String> statuses) {
+        return iterateDocuments(size, statuses, null);
+    }
+
+    /** Walk every document carrying all of the given tags, page by page. */
+    public Iterable<DocumentSummary> iterateDocuments(int size, List<String> statuses, List<String> tagIds) {
         return () -> new Iterator<>() {
-            private Page<DocumentSummary> current = listDocuments(0, size, statuses);
+            private Page<DocumentSummary> current = listDocuments(0, size, statuses, tagIds);
             private int index = 0;
 
             @Override
@@ -172,7 +194,7 @@ public final class AutosignlyClient {
                 if (!current.hasNext()) {
                     return false;
                 }
-                current = listDocuments(current.number() + 1, size, statuses);
+                current = listDocuments(current.number() + 1, size, statuses, tagIds);
                 index = 0;
                 return !current.content().isEmpty();
             }

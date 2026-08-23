@@ -105,17 +105,25 @@ class AutosignlyClient:
         self,
         *,
         status: str | Sequence[str] | None = None,
+        tag_id: str | Sequence[str] | None = None,
         page: int = 0,
         size: int = 20,
         sort: str | None = None,
     ) -> Page[DocumentSummary]:
-        """Return one page of documents belonging to this environment."""
+        """Return one page of documents belonging to this environment.
+
+        Several tags narrow the result: a document has to carry all of them. A
+        tag that does not exist yields an empty page rather than an error.
+        """
         params: list[tuple[str, Any]] = [("page", page), ("size", size)]
         if sort:
             params.append(("sort", sort))
         if status:
             values = [status] if isinstance(status, str) else list(status)
             params.extend(("status", value) for value in values)
+        if tag_id:
+            tags = [tag_id] if isinstance(tag_id, str) else list(tag_id)
+            params.extend(("tagId", tag) for tag in tags)
 
         payload = self._request("GET", "/documents", params=params)
         return _to_page(payload, DocumentSummary.from_payload)
@@ -124,13 +132,15 @@ class AutosignlyClient:
         self,
         *,
         status: str | Sequence[str] | None = None,
+        tag_id: str | Sequence[str] | None = None,
         size: int = 50,
         sort: str | None = None,
     ) -> Iterator[DocumentSummary]:
         """Walk every document, fetching further pages as needed."""
         page_number = 0
         while True:
-            page = self.list_documents(status=status, page=page_number, size=size, sort=sort)
+            page = self.list_documents(
+                status=status, tag_id=tag_id, page=page_number, size=size, sort=sort)
             yield from page.content
             if not page.has_next:
                 return

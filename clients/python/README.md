@@ -49,6 +49,13 @@ for summary in client.iter_documents(status="SIGNED"):
     print(summary.id, summary.name)
 ```
 
+Both listing calls take `tag_id` as well. Several tags narrow the result — a document has to
+carry all of them — and a tag that does not exist gives an empty page rather than an error:
+
+```python
+page = client.list_documents(tag_id=["contracts", "2026"], status="SIGNED")
+```
+
 ## Downloading the file
 
 A document carries a short-lived link to its file. The link expires, so fetch the document again

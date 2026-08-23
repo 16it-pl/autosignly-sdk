@@ -58,6 +58,11 @@ export interface ListDocumentsOptions {
   size?: number;
   /** One status or several — the endpoint repeats the parameter. */
   status?: string | string[];
+  /**
+   * One tag or several. Tags narrow the result: a document has to carry all of
+   * them. A tag that does not exist yields an empty page rather than an error.
+   */
+  tagId?: string | string[];
 }
 
 export interface SendForSigningOptions {
@@ -142,6 +147,7 @@ export class AutosignlyClient {
       size: String(options.size ?? 20),
     });
     for (const status of toArray(options.status)) params.append("status", status);
+    for (const tagId of toArray(options.tagId)) params.append("tagId", tagId);
 
     const payload = await this.#request<Json>("GET", `/documents?${params}`);
     return toPage(payload, toDocumentSummary);

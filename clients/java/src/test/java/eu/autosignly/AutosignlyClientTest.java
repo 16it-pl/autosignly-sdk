@@ -120,6 +120,17 @@ class AutosignlyClientTest {
     }
 
     @Test
+    void listDocumentsRepeatsTheTagFilter() {
+        answer(200, """
+                {"content":[],"page":{"number":0,"size":20,"totalElements":0,"totalPages":0}}""");
+
+        client.listDocuments(0, 20, List.of("SIGNED"), List.of("tag-1", "tag-2"));
+
+        assertThat(calls.get(0).query())
+                .isEqualTo("page=0&size=20&status=SIGNED&tagId=tag-1&tagId=tag-2");
+    }
+
+    @Test
     void iterateDocumentsFollowsThePages() {
         AtomicInteger call = new AtomicInteger();
         handler = exchange -> {

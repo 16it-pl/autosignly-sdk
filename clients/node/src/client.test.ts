@@ -82,6 +82,28 @@ test("listDocuments parses the page and sends the filters", async () => {
   assert.equal(page.content[0].tags[0].name, "x");
 });
 
+test("listDocuments repeats the tag filter", async () => {
+  const { client, calls } = buildClient(() =>
+    json({ content: [], page: { number: 0, size: 20, totalElements: 0, totalPages: 0 } }),
+  );
+
+  await client.listDocuments({ tagId: ["tag-1", "tag-2"], status: "SIGNED" });
+
+  assert.ok(calls[0].url.includes("tagId=tag-1"));
+  assert.ok(calls[0].url.includes("tagId=tag-2"));
+  assert.ok(calls[0].url.includes("status=SIGNED"));
+});
+
+test("listDocuments accepts a single tag", async () => {
+  const { client, calls } = buildClient(() =>
+    json({ content: [], page: { number: 0, size: 20, totalElements: 0, totalPages: 0 } }),
+  );
+
+  await client.listDocuments({ tagId: "tag-1" });
+
+  assert.equal(calls[0].url.match(/tagId=/g)?.length, 1);
+});
+
 test("iterDocuments follows the pages", async () => {
   let call = 0;
   const { client } = buildClient(() => {

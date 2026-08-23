@@ -67,7 +67,7 @@ const PARSERS: [string, string, (payload: never) => unknown][] = [
   ["toSignerStatus", "SignerStatusResponse", toSignerStatus],
   ["toCredentials", "CredentialsResponse", toCredentials],
   ["toSigningRequestResult", "SendForSigningResponse", toSigningRequestResult],
-  ["toTag", "TagResponse1", toTag],
+  ["toTag", "TagResponse", toTag],
 ];
 
 for (const [name, schema, parser] of PARSERS) {
@@ -146,6 +146,19 @@ test("uploadAndSign sends only fields the API accepts", async () => {
     (key) => !initiator.has(key),
   );
   assert.deepEqual(unknownInitiator, []);
+});
+
+test("the document filters the client sends exist in the spec", () => {
+  const parameters = (
+    spec as unknown as {
+      paths: Record<string, { get: { parameters: { name: string }[] } }>;
+    }
+  ).paths["/api/publics/v1/documents"].get.parameters;
+  const declared = new Set(parameters.map((parameter) => parameter.name));
+
+  for (const sent of ["status", "tagId", "page", "size", "sort"]) {
+    assert.ok(declared.has(sent), `the API no longer accepts ${sent}`);
+  }
 });
 
 test("every endpoint the client calls exists in the spec", () => {

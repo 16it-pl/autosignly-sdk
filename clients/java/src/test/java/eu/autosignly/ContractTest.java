@@ -97,7 +97,7 @@ class ContractTest {
                 org.junit.jupiter.params.provider.Arguments.of(Models.SignerStatus.class, "SignerStatusResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Credentials.class, "CredentialsResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.SigningRequestResult.class, "SendForSigningResponse"),
-                org.junit.jupiter.params.provider.Arguments.of(Models.Tag.class, "TagResponse1"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.Tag.class, "TagResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PageInfo.class, "PageInfo"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Signer.class, "ExternalSignerRequest"));
     }
@@ -112,6 +112,19 @@ class ContractTest {
         assertThat(unknown)
                 .as("%s uses fields the API does not know: %s", model.getSimpleName(), unknown)
                 .isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void theDocumentFiltersTheClientSendsExist() {
+        Map<String, Object> documents = (Map<String, Object>) ((Map<String, Object>) SPEC.get("paths"))
+                .get("/api/publics/v1/documents");
+        List<Map<String, Object>> parameters =
+                (List<Map<String, Object>>) ((Map<String, Object>) documents.get("get")).get("parameters");
+
+        List<String> declared = parameters.stream().map(parameter -> (String) parameter.get("name")).toList();
+
+        assertThat(declared).contains("status", "tagId", "page", "size", "sort");
     }
 
     @Test
