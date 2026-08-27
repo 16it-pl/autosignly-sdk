@@ -207,9 +207,11 @@ export class AutosignlyClient {
    */
   async uploadPdf(options: { pdf: Uint8Array; documentName: string; fileName?: string }): Promise<string> {
     const form = new FormData();
-    // Copy into a fresh ArrayBuffer, for the same reason as in uploadAndSign.
-    const pdf = options.pdf.slice().buffer;
-    form.append("file", new Blob([pdf], { type: "application/pdf" }), options.fileName ?? "document.pdf");
+    form.append(
+      "file",
+      new Blob([options.pdf], { type: "application/pdf" }),
+      options.fileName ?? "document.pdf",
+    );
     form.append(
       "request",
       new Blob([JSON.stringify({ documentName: options.documentName })], { type: "application/json" }),
@@ -241,11 +243,9 @@ export class AutosignlyClient {
     options: { content: Uint8Array; fileName: string },
   ): Promise<Attachment> {
     const form = new FormData();
-    // Copy into a fresh ArrayBuffer, for the same reason as in uploadAndSign.
-    const content = options.content.slice().buffer;
     form.append(
       "file",
-      new Blob([content], { type: contentType(options.fileName) }),
+      new Blob([options.content], { type: contentType(options.fileName) }),
       options.fileName,
     );
 
@@ -304,10 +304,11 @@ export class AutosignlyClient {
     request.documentName = options.documentName;
 
     const form = new FormData();
-    // Copy into a fresh ArrayBuffer: a Uint8Array view over a pooled Node buffer
-    // can carry more bytes than the view itself, and Blob would upload all of it.
-    const pdf = options.pdf.slice().buffer;
-    form.append("file", new Blob([pdf], { type: "application/pdf" }), options.fileName ?? "document.pdf");
+    form.append(
+      "file",
+      new Blob([options.pdf], { type: "application/pdf" }),
+      options.fileName ?? "document.pdf",
+    );
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
 
     const payload = await this.#request<Json>("POST", "/documents/signings", { form });

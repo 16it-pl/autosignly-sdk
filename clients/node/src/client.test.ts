@@ -536,3 +536,71 @@ test("deleteParty resolves on 204", async () => {
   assert.equal(calls[0].method, "DELETE");
   assert.equal(calls[0].url, `${BASE}/publics/v1/parties/party-1`);
 });
+
+/**
+ * A Node Buffer under 4 KB is a window onto the shared 8 KB allocation pool, so
+ * `.buffer` is the whole pool rather than the file. Uploading that sent ~8 KB of
+ * unrelated heap, starting with bytes that were not the file at all — the backend
+ * rejected it, and it leaked whatever sat next to it in the pool. These pin the
+ * uploaded part to exactly the bytes handed in.
+ */
+const POOLED = Buffer.from("%PDF-1.4\n" + "p".repeat(600));
+
+async function uploadedFile(call: Call): Promise<Uint8Array> {
+  const part = (call.body as FormData).get("file") as Blob;
+  return new Uint8Array(await part.arrayBuffer());
+}
+
+test("uploadAndSign uploads exactly the bytes it was given, not the whole Buffer pool", async () => {
+  const { client, calls } = buildClient(() => json({ documentId: "d-1" }));
+
+  await client.uploadAndSign({
+    pdf: POOLED,
+    documentName: "Umowa",
+    signers: [{ firstName: "A", lastName: "B", email: "a@b.test", country: "PL" }],
+  });
+
+  const sent = await uploadedFile(calls[0]);
+  assert.equal(sent.byteLength, POOLED.byteLength);
+  assert.deepEqual(Buffer.from(sent), POOLED);
+});
+
+test("uploadPdf uploads exactly the bytes it was given", async () => {
+  const { client, calls } = buildClient(() => json({ documentId: "d-1" }));
+
+  await client.uploadPdf({ pdf: POOLED, documentName: "Umowa" });
+
+  const sent = await uploadedFile(calls[0]);
+  assert.equal(sent.byteLength, POOLED.byteLength);
+  assert.deepEqual(Buffer.from(sent), POOLED);
+});
+
+test("addAttachment uploads exactly the bytes it was given", async () => {
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(700, 0x2a),
+  ]);
+  const { client, calls } = buildClient(() => json({ id: "a-1", fileName: "photo.png" }));
+
+  await client.addAttachment("d-1", { content: png, fileName: "photo.png" });
+
+  const sent = await uploadedFile(calls[0]);
+  assert.equal(sent.byteLength, png.byteLength);
+  // The backend detects the format from the leading magic bytes: a pooled upload
+  // started with pool garbage instead and was rejected.
+  assert.deepEqual(Buffer.from(sent.subarray(0, 8)), png.subarray(0, 8));
+});
+
+test("a subarray of a larger buffer uploads only its own window", async () => {
+  const backing = Buffer.alloc(5000, 0x41);
+  backing.write("%PDF-1.4", 1000);
+  const view = backing.subarray(1000, 1600);
+  const { client, calls } = buildClient(() => json({ documentId: "d-1" }));
+
+  await client.uploadPdf({ pdf: view, documentName: "Umowa" });
+
+  const sent = await uploadedFile(calls[0]);
+  assert.equal(sent.byteLength, 600);
+  assert.deepEqual(Buffer.from(sent), Buffer.from(view));
+});
+
