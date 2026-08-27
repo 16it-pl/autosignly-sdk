@@ -47,6 +47,14 @@ public final class Constants {
         public static final String CANCELLED = "CANCELLED";
     }
 
+    public static final class PartyType {
+        private PartyType() {}
+        /** A business, identified by its tax id. */
+        public static final String COMPANY = "COMPANY";
+        /** A natural person, identified by a name and an e-mail. */
+        public static final String PERSON = "PERSON";
+    }
+
     public static final class AttachmentFormat {
         private AttachmentFormat() {}
         public static final String PDF = "PDF";

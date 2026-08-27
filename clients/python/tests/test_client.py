@@ -8,6 +8,9 @@ from autosignly import (
     RateLimitError,
     AuthenticationError,
     AutosignlyClient,
+    Party,
+    PartyAddress,
+    PartyType,
     PermissionDeniedError,
     Signer,
     ValidationError,
@@ -472,3 +475,193 @@ def test_sends_a_versioned_user_agent():
         client.validate_credentials()
 
     assert seen["ua"].startswith("autosignly-python/")
+
+
+def _party_payload(**overrides):
+    payload = {
+        "id": "party-1",
+        "type": "COMPANY",
+        "name": "Acme Sp. z o.o.",
+        "taxId": "5842831253",
+        "email": "kontakt@acme.pl",
+        "phone": "+48500100200",
+        "createdAt": "2026-08-27T08:14:31Z",
+        "address": {
+            "street": "Marszalkowska",
+            "number": "12/34",
+            "postalCode": "00-001",
+            "city": "Warszawa",
+            "countryCode": "PL",
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_list_parties_pages_and_filters():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "content": [_party_payload()],
+                "page": {"number": 1, "size": 50, "totalElements": 101, "totalPages": 3},
+            },
+        )
+
+    with build_client(handler) as client:
+        page = client.list_parties(name="acme", type=PartyType.COMPANY, page=1, size=50)
+
+    assert "page=1" in seen["url"]
+    assert "size=50" in seen["url"]
+    assert "name=acme" in seen["url"]
+    assert "type=COMPANY" in seen["url"]
+    assert seen["url"].startswith("https://api.test/api/publics/v1/parties?")
+    assert len(page) == 1
+    assert page.has_next is True
+    party = page.content[0]
+    assert party.id == "party-1"
+    assert party.type == PartyType.COMPANY
+    assert party.tax_id == "5842831253"
+    assert party.address.country_code == "PL"
+    assert party.address.postal_code == "00-001"
+
+
+def test_list_parties_without_filters_sends_only_paging():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"content": [], "page": {"number": 0, "size": 20}})
+
+    with build_client(handler) as client:
+        client.list_parties()
+
+    assert "name=" not in seen["url"]
+    assert "type=" not in seen["url"]
+
+
+def test_get_party_reads_a_person():
+    def handler(request):
+        assert request.url.path == "/api/publics/v1/parties/party-2"
+        return httpx.Response(
+            200,
+            json=_party_payload(
+                id="party-2", type="PERSON", name="Kowalski", firstname="Jan",
+                taxId=None, address=None,
+            ),
+        )
+
+    with build_client(handler) as client:
+        party = client.get_party("party-2")
+
+    assert party.type == PartyType.PERSON
+    assert party.firstname == "Jan"
+    assert party.tax_id is None
+    assert party.address is None
+
+
+def test_get_party_unknown_raises_not_found():
+    def handler(request):
+        return httpx.Response(404, json={"errorType": "NOT_FOUND"})
+
+    with build_client(handler) as client:
+        with pytest.raises(NotFoundError):
+            client.get_party("nope")
+
+
+def test_create_party_sends_the_api_field_names():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=_party_payload())
+
+    party = Party(
+        type=PartyType.COMPANY,
+        name="Acme Sp. z o.o.",
+        tax_id="5842831253",
+        email="kontakt@acme.pl",
+        address=PartyAddress(
+            street="Marszalkowska", number="12/34", postal_code="00-001",
+            city="Warszawa", country_code="PL",
+        ),
+    )
+
+    with build_client(handler) as client:
+        created = client.create_party(party)
+
+    assert seen["method"] == "POST"
+    assert seen["path"] == "/api/publics/v1/parties"
+    assert seen["body"] == {
+        "type": "COMPANY",
+        "name": "Acme Sp. z o.o.",
+        "taxId": "5842831253",
+        "email": "kontakt@acme.pl",
+        "address": {
+            "street": "Marszalkowska",
+            "number": "12/34",
+            "postalCode": "00-001",
+            "city": "Warszawa",
+            "countryCode": "PL",
+        },
+    }
+    assert created.id == "party-1"
+
+
+def test_create_party_omits_what_was_not_set():
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=_party_payload())
+
+    with build_client(handler) as client:
+        client.create_party(Party(type=PartyType.PERSON, name="Kowalski", firstname="Jan",
+                                  email="jan@example.com"))
+
+    assert seen["body"] == {
+        "type": "PERSON",
+        "name": "Kowalski",
+        "firstname": "Jan",
+        "email": "jan@example.com",
+    }
+
+
+def test_update_party_replaces_the_whole_party():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=_party_payload(name="Acme Renamed"))
+
+    with build_client(handler) as client:
+        updated = client.update_party(
+            "party-1", Party(type=PartyType.COMPANY, name="Acme Renamed", tax_id="5842831253"))
+
+    assert seen["method"] == "PUT"
+    assert seen["path"] == "/api/publics/v1/parties/party-1"
+    assert seen["body"]["name"] == "Acme Renamed"
+    assert "id" not in seen["body"]
+    assert updated.name == "Acme Renamed"
+
+
+def test_delete_party_returns_nothing():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        return httpx.Response(204)
+
+    with build_client(handler) as client:
+        assert client.delete_party("party-1") is None
+
+    assert seen["method"] == "DELETE"
+    assert seen["path"] == "/api/publics/v1/parties/party-1"

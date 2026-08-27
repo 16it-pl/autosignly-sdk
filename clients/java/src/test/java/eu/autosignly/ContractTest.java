@@ -98,6 +98,7 @@ class ContractTest {
                 org.junit.jupiter.params.provider.Arguments.of(Models.Credentials.class, "CredentialsResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.SigningRequestResult.class, "SendForSigningResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Tag.class, "TagResponse"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.PartyAddress.class, "PartyAddress"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PageInfo.class, "PageInfo"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Signer.class, "ExternalSignerRequest"));
     }
@@ -112,6 +113,39 @@ class ContractTest {
         assertThat(unknown)
                 .as("%s uses fields the API does not know: %s", model.getSimpleName(), unknown)
                 .isEmpty();
+    }
+
+    @Test
+    void thePartyModelMatchesBothTheResponseAndTheRequestSchema() {
+        Set<String> response = propertiesOf("Party");
+        List<String> unknownInResponse = new ArrayList<>(wireNamesOf(Models.Party.class));
+        unknownInResponse.removeAll(response);
+
+        assertThat(unknownInResponse)
+                .as("Party reads fields the API does not send: %s", unknownInResponse)
+                .isEmpty();
+
+        Set<String> request = propertiesOf("PartyRequest");
+        List<String> unknownInRequest = new ArrayList<>(wireNamesOf(Models.Party.class));
+        unknownInRequest.removeAll(request);
+        unknownInRequest.removeAll(List.of("id", "createdAt"));
+
+        assertThat(unknownInRequest)
+                .as("Party sends fields the API does not accept: %s", unknownInRequest)
+                .isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void thePartyFiltersTheClientSendsExist() {
+        Map<String, Object> parties = (Map<String, Object>) ((Map<String, Object>) SPEC.get("paths"))
+                .get("/api/publics/v1/parties");
+        List<Map<String, Object>> parameters =
+                (List<Map<String, Object>>) ((Map<String, Object>) parties.get("get")).get("parameters");
+
+        List<String> declared = parameters.stream().map(parameter -> (String) parameter.get("name")).toList();
+
+        assertThat(declared).contains("name", "type", "page", "size");
     }
 
     @Test
@@ -143,7 +177,9 @@ class ContractTest {
                 "/api/publics/v1/documents/{documentId}/signings",
                 "/api/publics/v1/documents/{documentId}/tags",
                 "/api/publics/v1/tags",
-                "/api/publics/v1/tags/{tagId}");
+                "/api/publics/v1/tags/{tagId}",
+                "/api/publics/v1/parties",
+                "/api/publics/v1/parties/{partyId}");
 
         List<String> missing = new ArrayList<>(called);
         missing.removeAll(paths);

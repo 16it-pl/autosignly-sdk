@@ -140,6 +140,92 @@ class Signer:
         return {key: value for key, value in payload.items() if value is not None}
 
 
+class PartyType:
+    """Whether a party is a business or a natural person."""
+
+    COMPANY = "COMPANY"
+    PERSON = "PERSON"
+
+
+@dataclass(slots=True)
+class PartyAddress:
+    """Registered address of a party."""
+
+    street: str | None = None
+    number: str | None = None
+    postal_code: str | None = None
+    city: str | None = None
+    country_code: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "PartyAddress":
+        return cls(
+            street=payload.get("street"),
+            number=payload.get("number"),
+            postal_code=payload.get("postalCode"),
+            city=payload.get("city"),
+            country_code=payload.get("countryCode"),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload = {
+            "street": self.street,
+            "number": self.number,
+            "postalCode": self.postal_code,
+            "city": self.city,
+            "countryCode": self.country_code,
+        }
+        return {key: value for key, value in payload.items() if value is not None}
+
+
+@dataclass(slots=True)
+class Party:
+    """A counterparty of the company — the other side of a document.
+
+    A ``COMPANY`` is identified by ``tax_id`` and needs an ``address``; a
+    ``PERSON`` needs a ``firstname`` and an ``email``. Parties belong to the
+    environment of the key that created them, so a sandbox key never sees a
+    production party.
+    """
+
+    type: str
+    name: str
+    firstname: str | None = None
+    tax_id: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: PartyAddress | None = None
+    id: str | None = None
+    created_at: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "Party":
+        address = payload.get("address")
+        return cls(
+            type=payload.get("type", ""),
+            name=payload.get("name", ""),
+            firstname=payload.get("firstname"),
+            tax_id=payload.get("taxId"),
+            email=payload.get("email"),
+            phone=payload.get("phone"),
+            address=PartyAddress.from_payload(address) if address else None,
+            id=payload.get("id"),
+            created_at=payload.get("createdAt"),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "type": self.type,
+            "name": self.name,
+            "firstname": self.firstname,
+            "taxId": self.tax_id,
+            "email": self.email,
+            "phone": self.phone,
+            "address": self.address.to_payload() if self.address else None,
+        }
+        return {key: value for key, value in payload.items() if value is not None}
+
+
 @dataclass(slots=True)
 class Tag:
     """A company tag, used to group documents and templates."""

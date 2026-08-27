@@ -26,6 +26,9 @@ import {
   toDocument,
   toDocumentSummary,
   toPage,
+  toParty,
+  toPartyAddress,
+  partyToPayload,
   toSignerDetails,
   toSignerStatus,
   toSigningRequestResult,
@@ -68,6 +71,8 @@ const PARSERS: [string, string, (payload: never) => unknown][] = [
   ["toCredentials", "CredentialsResponse", toCredentials],
   ["toSigningRequestResult", "SendForSigningResponse", toSigningRequestResult],
   ["toTag", "TagResponse", toTag],
+  ["toParty", "Party", toParty],
+  ["toPartyAddress", "PartyAddress", toPartyAddress],
 ];
 
 for (const [name, schema, parser] of PARSERS) {
@@ -112,6 +117,47 @@ test("signerToPayload sends only fields the API accepts", () => {
 
   const unknown = sent.filter((key) => !declared.has(key));
   assert.deepEqual(unknown, [], `unknown signer fields: ${unknown.join(", ")}`);
+});
+
+test("partyToPayload sends only fields the API accepts", () => {
+  const declared = propertiesOf("PartyRequest");
+  const payload = partyToPayload({
+    type: "COMPANY",
+    name: "Acme Sp. z o.o.",
+    firstname: "Jan",
+    taxId: "5842831253",
+    email: "kontakt@acme.pl",
+    phone: "+48500100200",
+    address: {
+      street: "Marszalkowska",
+      number: "12/34",
+      postalCode: "00-001",
+      city: "Warszawa",
+      countryCode: "PL",
+    },
+  });
+
+  const unknown = Object.keys(payload).filter((key) => !declared.has(key));
+  assert.deepEqual(unknown, [], `unknown party fields: ${unknown.join(", ")}`);
+
+  const address = propertiesOf("PartyAddress");
+  const unknownAddress = Object.keys(payload.address as Record<string, unknown>).filter(
+    (key) => !address.has(key),
+  );
+  assert.deepEqual(unknownAddress, []);
+});
+
+test("the party filters the client sends exist in the spec", () => {
+  const parameters = (
+    spec as unknown as {
+      paths: Record<string, { get: { parameters: { name: string }[] } }>;
+    }
+  ).paths["/api/publics/v1/parties"].get.parameters;
+  const declared = new Set(parameters.map((parameter) => parameter.name));
+
+  for (const sent of ["name", "type", "page", "size"]) {
+    assert.ok(declared.has(sent), `the API no longer accepts ${sent}`);
+  }
 });
 
 test("uploadAndSign sends only fields the API accepts", async () => {
@@ -175,6 +221,8 @@ test("every endpoint the client calls exists in the spec", () => {
     "/api/publics/v1/documents/{documentId}/tags",
     "/api/publics/v1/tags",
     "/api/publics/v1/tags/{tagId}",
+    "/api/publics/v1/parties",
+    "/api/publics/v1/parties/{partyId}",
   ];
 
   const missing = called.filter((path) => !paths.has(path));

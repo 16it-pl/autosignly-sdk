@@ -19,6 +19,7 @@ from .models import (
     Document,
     DocumentSummary,
     Page,
+    Party,
     Signer,
     SigningRequestResult,
     Tag,
@@ -303,6 +304,58 @@ class AutosignlyClient:
         }
         payload = self._request("POST", "/documents/signings", files=files)
         return payload.get("documentId", "")
+
+    # -- parties -------------------------------------------------------------
+
+    def list_parties(
+        self,
+        *,
+        name: str | None = None,
+        type: str | None = None,
+        page: int = 0,
+        size: int = 20,
+    ) -> Page[Party]:
+        """Return one page of the company parties for this environment.
+
+        ``name`` matches a fragment of the name, given name, tax id, e-mail or
+        phone. ``type`` narrows the page to ``COMPANY`` or ``PERSON``. There is no sort: the searchable fields are stored
+        encrypted, so the server cannot order by them.
+        """
+        params: list[tuple[str, Any]] = [("page", page), ("size", size)]
+        if name:
+            params.append(("name", name))
+        if type:
+            params.append(("type", type))
+        payload = self._request("GET", "/parties", params=params)
+        return _to_page(payload, Party.from_payload)
+
+    def get_party(self, party_id: str) -> Party:
+        """Return one party. Unknown in this environment raises ``NotFoundError``."""
+        payload = self._request("GET", f"/parties/{party_id}")
+        return Party.from_payload(payload)
+
+    def create_party(self, party: Party) -> Party:
+        """Add a party to the company in this environment.
+
+        A party with the same tax id (``COMPANY``) or e-mail (``PERSON``) is
+        rejected rather than duplicated, so this call is not safe to repeat
+        blindly — look the party up first when retrying.
+        """
+        payload = self._request("POST", "/parties", json_body=party.to_payload())
+        return Party.from_payload(payload)
+
+    def update_party(self, party_id: str, party: Party) -> Party:
+        """Replace the party data.
+
+        Every field is taken from ``party``, so send the whole party, not only
+        what changed.
+        """
+        payload = self._request("PUT", f"/parties/{party_id}", json_body=party.to_payload())
+        return Party.from_payload(payload)
+
+    def delete_party(self, party_id: str) -> None:
+        """Remove the party. Documents already signed keep their copy of the data."""
+        self._request("DELETE", f"/parties/{party_id}")
 
     # -- tags ----------------------------------------------------------------
 

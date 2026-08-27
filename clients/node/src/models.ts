@@ -102,6 +102,41 @@ export interface Tag {
   color?: string;
 }
 
+/** Whether a party is a business or a natural person. */
+export const PartyType = {
+  COMPANY: "COMPANY",
+  PERSON: "PERSON",
+} as const;
+
+/** Registered address of a party. */
+export interface PartyAddress {
+  street?: string;
+  number?: string;
+  postalCode?: string;
+  city?: string;
+  /** ISO 3166-1 alpha-2, e.g. "PL". A Polish address makes the tax id subject to the NIP checksum. */
+  countryCode?: string;
+}
+
+/**
+ * A counterparty of the company — the other side of a document.
+ *
+ * A COMPANY is identified by `taxId` and needs an `address`; a PERSON needs a
+ * `firstname` and an `email`. Parties belong to the environment of the key that
+ * created them, so a sandbox key never sees a production party.
+ */
+export interface Party {
+  type: string;
+  name: string;
+  firstname?: string;
+  taxId?: string;
+  email?: string;
+  phone?: string;
+  address?: PartyAddress;
+  id?: string;
+  createdAt?: string;
+}
+
 /** A signer as recorded on a document. */
 export interface SignerDetails {
   email?: string;
@@ -204,6 +239,50 @@ export function toTag(payload: Json): Tag {
     name: String(payload.name ?? ""),
     color: str(payload.color),
   };
+}
+
+export function toPartyAddress(payload: Json): PartyAddress {
+  return {
+    street: str(payload.street),
+    number: str(payload.number),
+    postalCode: str(payload.postalCode),
+    city: str(payload.city),
+    countryCode: str(payload.countryCode),
+  };
+}
+
+export function toParty(payload: Json): Party {
+  const address = payload.address;
+  return {
+    type: String(payload.type ?? ""),
+    name: String(payload.name ?? ""),
+    firstname: str(payload.firstname),
+    taxId: str(payload.taxId),
+    email: str(payload.email),
+    phone: str(payload.phone),
+    address:
+      address && typeof address === "object" ? toPartyAddress(address as Json) : undefined,
+    id: str(payload.id),
+    createdAt: str(payload.createdAt),
+  };
+}
+
+export function partyToPayload(party: Party): Json {
+  const payload: Json = { type: party.type, name: party.name };
+  if (party.firstname !== undefined) payload.firstname = party.firstname;
+  if (party.taxId !== undefined) payload.taxId = party.taxId;
+  if (party.email !== undefined) payload.email = party.email;
+  if (party.phone !== undefined) payload.phone = party.phone;
+  if (party.address !== undefined) {
+    const address: Json = {};
+    if (party.address.street !== undefined) address.street = party.address.street;
+    if (party.address.number !== undefined) address.number = party.address.number;
+    if (party.address.postalCode !== undefined) address.postalCode = party.address.postalCode;
+    if (party.address.city !== undefined) address.city = party.address.city;
+    if (party.address.countryCode !== undefined) address.countryCode = party.address.countryCode;
+    payload.address = address;
+  }
+  return payload;
 }
 
 export function toSignerDetails(payload: Json): SignerDetails {

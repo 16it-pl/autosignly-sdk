@@ -61,6 +61,62 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Tag(String id, String name, String color) {}
 
+    /** Registered address of a party. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PartyAddress(
+            String street,
+            String number,
+            String postalCode,
+            String city,
+            /** ISO 3166-1 alpha-2, e.g. "PL". A Polish address makes the tax id subject to the NIP checksum. */
+            String countryCode) {}
+
+    /**
+     * A counterparty of the company — the other side of a document.
+     *
+     * <p>A COMPANY is identified by {@code taxId} and needs an {@code address}; a
+     * PERSON needs a {@code firstname} and an {@code email}. Parties belong to the
+     * environment of the key that created them, so a sandbox key never sees a
+     * production party.
+     *
+     * <p>{@code id} and {@code createdAt} are filled in by the server and ignored
+     * when the record is sent.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Party(
+            String type,
+            String name,
+            String firstname,
+            String taxId,
+            String email,
+            String phone,
+            PartyAddress address,
+            String id,
+            String createdAt) {
+
+        /** A business, identified by its tax id. */
+        public static Party company(String name, String taxId, String email, PartyAddress address) {
+            return new Party(Constants.PartyType.COMPANY, name, null, taxId, email, null,
+                    address, null, null);
+        }
+
+        /** A natural person, identified by a name and an e-mail. */
+        public static Party person(String name, String firstname, String email) {
+            return new Party(Constants.PartyType.PERSON, name, firstname, null, email, null,
+                    null, null, null);
+        }
+
+        public Party withPhone(String phone) {
+            return new Party(type, name, firstname, taxId, email, phone, address, id, createdAt);
+        }
+
+        public Party withAddress(PartyAddress address) {
+            return new Party(type, name, firstname, taxId, email, phone, address, id, createdAt);
+        }
+    }
+
     /** A signer as recorded on a document. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SignerDetails(

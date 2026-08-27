@@ -22,6 +22,8 @@ from autosignly.models import (
     Credentials,
     Document,
     DocumentSummary,
+    Party,
+    PartyAddress,
     Signer,
     SignerDetails,
     SignerStatus,
@@ -74,6 +76,8 @@ PARSERS = [
     ("Credentials", "CredentialsResponse", Credentials.from_payload),
     ("SigningRequestResult", "SendForSigningResponse", SigningRequestResult.from_payload),
     ("Tag", "TagResponse", Tag.from_payload),
+    ("Party", "Party", Party.from_payload),
+    ("PartyAddress", "PartyAddress", PartyAddress.from_payload),
 ]
 
 
@@ -110,6 +114,41 @@ def test_signer_sends_only_fields_the_api_accepts() -> None:
     assert unknown == [], f"unknown signer fields: {', '.join(unknown)}"
 
 
+def test_party_sends_only_fields_the_api_accepts() -> None:
+    payload = Party(
+        type="COMPANY",
+        name="Acme Sp. z o.o.",
+        firstname="Jan",
+        tax_id="5842831253",
+        email="kontakt@acme.pl",
+        phone="+48500100200",
+        address=PartyAddress(
+            street="Marszalkowska", number="12/34", postal_code="00-001",
+            city="Warszawa", country_code="PL",
+        ),
+    ).to_payload()
+
+    unknown = sorted(set(payload) - properties_of("PartyRequest"))
+    assert unknown == [], f"unknown party fields: {', '.join(unknown)}"
+
+    address_unknown = sorted(set(payload["address"]) - properties_of("PartyAddress"))
+    assert address_unknown == [], f"unknown address fields: {', '.join(address_unknown)}"
+
+
+def test_party_filters_the_client_sends_exist() -> None:
+    declared = {
+        param["name"]
+        for param in SPEC["paths"]["/api/publics/v1/parties"]["get"]["parameters"]
+    }
+
+    assert {"name", "type", "page", "size"} <= declared
+
+
+def test_party_page_envelope_is_declared() -> None:
+    envelope = properties_of("PageResponsePartyResponseV1")
+    assert {"content", "page"} <= envelope
+
+
 def test_document_filters_the_client_sends_exist() -> None:
     declared = {
         param["name"]
@@ -132,6 +171,8 @@ def test_every_endpoint_the_client_calls_exists() -> None:
         "/api/publics/v1/documents/{documentId}/tags",
         "/api/publics/v1/tags",
         "/api/publics/v1/tags/{tagId}",
+        "/api/publics/v1/parties",
+        "/api/publics/v1/parties/{partyId}",
     }
     missing = sorted(called - set(SPEC["paths"]))
     assert missing == [], f"endpoints gone from the API: {', '.join(missing)}"

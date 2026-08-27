@@ -16,6 +16,8 @@ import java.util.function.Consumer;
 
 import eu.autosignly.Models.Attachment;
 import eu.autosignly.Models.Document;
+import eu.autosignly.Models.Party;
+import eu.autosignly.Models.PartyAddress;
 import eu.autosignly.Models.Signer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -403,6 +405,116 @@ class AutosignlyClientTest {
         assertThat(calls.get(0).method()).isEqualTo("PUT");
         assertThat(calls.get(0).body()).contains("\"names\":[\"CISO\",\"policy\"]");
         assertThat(tags).singleElement().satisfies(tag -> assertThat(tag.name()).isEqualTo("CISO"));
+    }
+
+    private static final String PARTY_JSON = """
+            {"id":"party-1","type":"COMPANY","name":"Acme Sp. z o.o.","taxId":"5842831253",
+             "email":"kontakt@acme.pl","phone":"+48500100200",
+             "createdAt":"2026-08-27T08:14:31Z",
+             "address":{"street":"Marszalkowska","number":"12/34","postalCode":"00-001",
+                        "city":"Warszawa","countryCode":"PL"}}
+            """;
+
+    @Test
+    void listPartiesPagesAndFilters() {
+        answer(200, "{\"content\":[" + PARTY_JSON + "],"
+                + "\"page\":{\"number\":1,\"size\":50,\"totalElements\":101,\"totalPages\":3}}");
+
+        var page = client.listParties(1, 50, "acme", Constants.PartyType.COMPANY);
+
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/parties");
+        assertThat(calls.get(0).query())
+                .contains("page=1").contains("size=50").contains("name=acme").contains("type=COMPANY");
+        assertThat(page.hasNext()).isTrue();
+        assertThat(page.content()).singleElement().satisfies(party -> {
+            assertThat(party.id()).isEqualTo("party-1");
+            assertThat(party.taxId()).isEqualTo("5842831253");
+            assertThat(party.address().postalCode()).isEqualTo("00-001");
+            assertThat(party.address().countryCode()).isEqualTo("PL");
+        });
+    }
+
+    @Test
+    void listPartiesWithoutFiltersSendsOnlyPaging() {
+        answer(200, "{\"content\":[],\"page\":{\"number\":0,\"size\":20}}");
+
+        client.listParties();
+
+        assertThat(calls.get(0).query()).doesNotContain("name=").doesNotContain("type=");
+    }
+
+    @Test
+    void getPartyReadsAPerson() {
+        answer(200, "{\"id\":\"party-2\",\"type\":\"PERSON\",\"name\":\"Kowalski\",\"firstname\":\"Jan\"}");
+
+        Party party = client.getParty("party-2");
+
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/parties/party-2");
+        assertThat(party.type()).isEqualTo(Constants.PartyType.PERSON);
+        assertThat(party.firstname()).isEqualTo("Jan");
+        assertThat(party.taxId()).isNull();
+        assertThat(party.address()).isNull();
+    }
+
+    @Test
+    void getPartyOnAnUnknownIdIsANotFound() {
+        answer(404, "{\"errorType\":\"NOT_FOUND\"}");
+
+        assertThatThrownBy(() -> client.getParty("nope"))
+                .isInstanceOf(AutosignlyException.NotFound.class);
+    }
+
+    @Test
+    void createPartySendsTheApiFieldNamesAndOmitsServerSideOnes() {
+        answer(200, PARTY_JSON);
+
+        Party created = client.createParty(Party.company("Acme Sp. z o.o.", "5842831253", "kontakt@acme.pl",
+                new PartyAddress("Marszalkowska", "12/34", "00-001", "Warszawa", "PL")));
+
+        assertThat(calls.get(0).method()).isEqualTo("POST");
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/parties");
+        assertThat(calls.get(0).body())
+                .contains("\"type\":\"COMPANY\"")
+                .contains("\"taxId\":\"5842831253\"")
+                .contains("\"countryCode\":\"PL\"")
+                .doesNotContain("\"id\"")
+                .doesNotContain("createdAt")
+                .doesNotContain("\"firstname\"");
+        assertThat(created.id()).isEqualTo("party-1");
+    }
+
+    @Test
+    void createPersonPartyOmitsTheCompanyOnlyFields() {
+        answer(200, PARTY_JSON);
+
+        client.createParty(Party.person("Kowalski", "Jan", "jan@example.com"));
+
+        assertThat(calls.get(0).body())
+                .contains("\"type\":\"PERSON\"")
+                .contains("\"firstname\":\"Jan\"")
+                .doesNotContain("taxId")
+                .doesNotContain("address");
+    }
+
+    @Test
+    void updatePartyReplacesTheWholeParty() {
+        answer(200, PARTY_JSON);
+
+        client.updateParty("party-1", Party.company("Acme Renamed", "5842831253", null, null));
+
+        assertThat(calls.get(0).method()).isEqualTo("PUT");
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/parties/party-1");
+        assertThat(calls.get(0).body()).contains("\"name\":\"Acme Renamed\"").doesNotContain("\"id\"");
+    }
+
+    @Test
+    void deletePartyIssuesADelete() {
+        answer(204, "");
+
+        client.deleteParty("party-1");
+
+        assertThat(calls.get(0).method()).isEqualTo("DELETE");
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/parties/party-1");
     }
 
     @Test

@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -31,6 +32,7 @@ import eu.autosignly.Models.Document;
 import eu.autosignly.Models.DocumentSummary;
 import eu.autosignly.Models.Page;
 import eu.autosignly.Models.PageInfo;
+import eu.autosignly.Models.Party;
 import eu.autosignly.Models.Signer;
 import eu.autosignly.Models.SigningRequestResult;
 import eu.autosignly.Models.Tag;
@@ -336,6 +338,97 @@ public final class AutosignlyClient {
         JsonNode payload = request("POST", "/documents/signings", null,
                 new Multipart(boundary, multipart));
         return payload == null ? "" : payload.path("documentId").asText("");
+    }
+
+    // -- parties -------------------------------------------------------------
+
+    /**
+     * One page of the company parties for this environment.
+     *
+     * <p>{@code name} matches a fragment of the name, given name, tax id, e-mail
+     * or phone; {@code type} narrows the page to COMPANY or PERSON.
+     * Both may be null. There is no sort: the searchable fields are stored
+     * encrypted, so the server cannot order by them.
+     */
+    public Page<Party> listParties(int page, int size, String name, String type) {
+        StringBuilder query = new StringBuilder("/parties?page=" + page + "&size=" + size);
+        if (name != null && !name.isBlank()) {
+            query.append("&name=").append(URLEncoder.encode(name, StandardCharsets.UTF_8));
+        }
+        if (type != null && !type.isBlank()) {
+            query.append("&type=").append(URLEncoder.encode(type, StandardCharsets.UTF_8));
+        }
+        return toPage(request("GET", query.toString(), null, null), Party.class);
+    }
+
+    /** The first page of parties, with the default size. */
+    public Page<Party> listParties() {
+        return listParties(0, 20, null, null);
+    }
+
+    /** Walk every party, page by page, fetching as the iterator advances. */
+    public Iterable<Party> iterateParties(int size, String name, String type) {
+        return () -> new Iterator<>() {
+            private Page<Party> current = listParties(0, size, name, type);
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                if (index < current.content().size()) {
+                    return true;
+                }
+                if (!current.hasNext()) {
+                    return false;
+                }
+                current = listParties(current.number() + 1, size, name, type);
+                index = 0;
+                return !current.content().isEmpty();
+            }
+
+            @Override
+            public Party next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                return current.content().get(index++);
+            }
+        };
+    }
+
+    /** One party. Unknown in this environment throws {@link AutosignlyException.NotFound}. */
+    public Party getParty(String partyId) {
+        return read(request("GET", "/parties/" + partyId, null, null), Party.class);
+    }
+
+    /**
+     * Add a party to the company in this environment.
+     *
+     * <p>A party with the same tax id (COMPANY) or e-mail (PERSON) is rejected
+     * rather than duplicated, so this call is not safe to repeat blindly — look
+     * the party up first when retrying.
+     */
+    public Party createParty(Party party) {
+        return read(request("POST", "/parties", mapper.valueToTree(sendable(party)), null), Party.class);
+    }
+
+    /**
+     * Replace the party data.
+     *
+     * <p>Every field is taken from {@code party}, so send the whole party, not
+     * only what changed.
+     */
+    public Party updateParty(String partyId, Party party) {
+        return read(request("PUT", "/parties/" + partyId, mapper.valueToTree(sendable(party)), null), Party.class);
+    }
+
+    /** Remove the party. Documents already signed keep their copy of the data. */
+    public void deleteParty(String partyId) {
+        request("DELETE", "/parties/" + partyId, null, null);
+    }
+
+    private static Party sendable(Party party) {
+        return new Party(party.type(), party.name(), party.firstname(), party.taxId(), party.email(),
+                party.phone(), party.address(), null, null);
     }
 
     // -- tags ----------------------------------------------------------------

@@ -389,3 +389,150 @@ test("reports an unreachable API as a connection error", async () => {
   });
   await assert.rejects(() => client.getDocument("d-1"), /Could not reach/);
 });
+
+const partyPayload = (overrides: Record<string, unknown> = {}) => ({
+  id: "party-1",
+  type: "COMPANY",
+  name: "Acme Sp. z o.o.",
+  taxId: "5842831253",
+  email: "kontakt@acme.pl",
+  phone: "+48500100200",
+  createdAt: "2026-08-27T08:14:31Z",
+  address: {
+    street: "Marszalkowska",
+    number: "12/34",
+    postalCode: "00-001",
+    city: "Warszawa",
+    countryCode: "PL",
+  },
+  ...overrides,
+});
+
+test("listParties pages and filters", async () => {
+  const { client, calls } = buildClient(() =>
+    json({
+      content: [partyPayload()],
+      page: { number: 1, size: 50, totalElements: 101, totalPages: 3 },
+    }),
+  );
+
+  const page = await client.listParties({ name: "acme", type: "COMPANY", page: 1, size: 50 });
+
+  assert.ok(calls[0].url.startsWith(`${BASE}/publics/v1/parties?`));
+  assert.ok(calls[0].url.includes("page=1"));
+  assert.ok(calls[0].url.includes("size=50"));
+  assert.ok(calls[0].url.includes("name=acme"));
+  assert.ok(calls[0].url.includes("type=COMPANY"));
+  assert.equal(page.content.length, 1);
+  assert.equal(page.totalPages, 3);
+  assert.equal(page.content[0].taxId, "5842831253");
+  assert.equal(page.content[0].address?.postalCode, "00-001");
+});
+
+test("listParties without filters sends only paging", async () => {
+  const { client, calls } = buildClient(() => json({ content: [], page: { number: 0, size: 20 } }));
+
+  await client.listParties();
+
+  assert.ok(!calls[0].url.includes("name="));
+  assert.ok(!calls[0].url.includes("type="));
+});
+
+test("getParty reads a person", async () => {
+  const { client, calls } = buildClient(() =>
+    json(partyPayload({ id: "party-2", type: "PERSON", name: "Kowalski", firstname: "Jan", taxId: undefined, address: undefined })),
+  );
+
+  const party = await client.getParty("party-2");
+
+  assert.equal(calls[0].url, `${BASE}/publics/v1/parties/party-2`);
+  assert.equal(party.type, "PERSON");
+  assert.equal(party.firstname, "Jan");
+  assert.equal(party.taxId, undefined);
+  assert.equal(party.address, undefined);
+});
+
+test("getParty on an unknown id throws NotFoundError", async () => {
+  const { client } = buildClient(() => json({ errorType: "NOT_FOUND" }, 404));
+
+  await assert.rejects(() => client.getParty("nope"), NotFoundError);
+});
+
+test("createParty sends the API field names", async () => {
+  const { client, calls } = buildClient(() => json(partyPayload()));
+
+  const created = await client.createParty({
+    type: "COMPANY",
+    name: "Acme Sp. z o.o.",
+    taxId: "5842831253",
+    email: "kontakt@acme.pl",
+    address: {
+      street: "Marszalkowska",
+      number: "12/34",
+      postalCode: "00-001",
+      city: "Warszawa",
+      countryCode: "PL",
+    },
+  });
+
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].url, `${BASE}/publics/v1/parties`);
+  assert.deepEqual(JSON.parse(calls[0].body as string), {
+    type: "COMPANY",
+    name: "Acme Sp. z o.o.",
+    taxId: "5842831253",
+    email: "kontakt@acme.pl",
+    address: {
+      street: "Marszalkowska",
+      number: "12/34",
+      postalCode: "00-001",
+      city: "Warszawa",
+      countryCode: "PL",
+    },
+  });
+  assert.equal(created.id, "party-1");
+});
+
+test("createParty omits what was not set", async () => {
+  const { client, calls } = buildClient(() => json(partyPayload()));
+
+  await client.createParty({
+    type: "PERSON",
+    name: "Kowalski",
+    firstname: "Jan",
+    email: "jan@example.com",
+  });
+
+  assert.deepEqual(JSON.parse(calls[0].body as string), {
+    type: "PERSON",
+    name: "Kowalski",
+    firstname: "Jan",
+    email: "jan@example.com",
+  });
+});
+
+test("updateParty replaces the whole party", async () => {
+  const { client, calls } = buildClient(() => json(partyPayload({ name: "Acme Renamed" })));
+
+  const updated = await client.updateParty("party-1", {
+    type: "COMPANY",
+    name: "Acme Renamed",
+    taxId: "5842831253",
+  });
+
+  assert.equal(calls[0].method, "PUT");
+  assert.equal(calls[0].url, `${BASE}/publics/v1/parties/party-1`);
+  const body = JSON.parse(calls[0].body as string);
+  assert.equal(body.name, "Acme Renamed");
+  assert.equal(body.id, undefined);
+  assert.equal(updated.name, "Acme Renamed");
+});
+
+test("deleteParty resolves on 204", async () => {
+  const { client, calls } = buildClient(() => new Response(null, { status: 204 }));
+
+  await client.deleteParty("party-1");
+
+  assert.equal(calls[0].method, "DELETE");
+  assert.equal(calls[0].url, `${BASE}/publics/v1/parties/party-1`);
+});

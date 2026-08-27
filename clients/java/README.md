@@ -123,6 +123,36 @@ page rather than an error:
 var tagged = client.listDocuments(0, 50, List.of(DocumentStatus.SIGNED), List.of(tagId));
 ```
 
+## Parties
+
+A party is the other side of a document — a business or a natural person the company signs with.
+
+```java
+Party acme = client.createParty(Party.company(
+        "Acme Sp. z o.o.", "5842831253", "kontakt@acme.pl",
+        new PartyAddress("Marszalkowska", "12/34", "00-001", "Warszawa", "PL")));
+
+Page<Party> page = client.listParties(0, 20, "acme", Constants.PartyType.COMPANY);
+for (Party party : client.iterateParties(50, null, null)) {
+    System.out.println(party.id() + " " + party.name());
+}
+
+client.updateParty(acme.id(), Party.company("Acme Renamed", "5842831253", null, null));
+client.deleteParty(acme.id());
+```
+
+A COMPANY needs a `taxId` and an `address`; a PERSON needs a `firstname` and an `email` —
+`Party.company(...)` and `Party.person(...)` build each. A Polish address makes the tax id subject
+to the NIP checksum.
+
+`updateParty` replaces the whole party, so send every field you want to keep. Creating a party
+that already exists — same tax id for a COMPANY, same e-mail for a PERSON — is rejected rather
+than deduplicated, so look the party up before retrying a failed create.
+
+Parties belong to the environment of the key that created them: a sandbox key never sees a
+production party. Listing has no sort — the searchable fields are stored encrypted, so the server
+cannot order by them.
+
 ## Webhooks
 
 Autosignly signs every delivery with `X-Webhook-Signature` and

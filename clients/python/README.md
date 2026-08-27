@@ -120,6 +120,41 @@ client.set_document_tags(document_id, tag_ids=[tag.id], names=["2026"])
 Setting tags replaces the whole set: tags left out are removed, and names that do not exist yet are
 added to the company tag pool.
 
+## Parties
+
+A party is the other side of a document — a business or a natural person the company signs with.
+
+```python
+from autosignly import Party, PartyAddress, PartyType
+
+acme = client.create_party(Party(
+    type=PartyType.COMPANY,
+    name="Acme Sp. z o.o.",
+    tax_id="5842831253",
+    email="kontakt@acme.pl",
+    address=PartyAddress(street="Marszalkowska", number="12/34",
+                         postal_code="00-001", city="Warszawa", country_code="PL"),
+))
+
+for party in client.list_parties(name="acme", type=PartyType.COMPANY):
+    print(party.id, party.name, party.tax_id)
+
+client.update_party(acme.id, Party(type=PartyType.COMPANY, name="Acme Renamed",
+                                   tax_id="5842831253"))
+client.delete_party(acme.id)
+```
+
+A `COMPANY` needs a `tax_id` and an `address`; a `PERSON` needs a `firstname` and an `email`. A
+Polish address makes the tax id subject to the NIP checksum.
+
+`update_party` replaces the whole party, so send every field you want to keep. Creating a party
+that already exists — same tax id for a `COMPANY`, same e-mail for a `PERSON` — is rejected rather
+than deduplicated, so look the party up before retrying a failed create.
+
+Parties belong to the environment of the key that created them: a sandbox key never sees a
+production party. Listing has no `sort` — the searchable fields are stored encrypted, so the
+server cannot order by them.
+
 ## Verifying webhooks
 
 Autosignly signs every delivery. Check the signature against the raw request body, before parsing

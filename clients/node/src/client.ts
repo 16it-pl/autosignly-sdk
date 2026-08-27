@@ -19,15 +19,18 @@ import {
   type Document,
   type DocumentSummary,
   type Page,
+  type Party,
   type Signer,
   type SigningRequestResult,
   type Tag,
+  partyToPayload,
   signerToPayload,
   toAttachment,
   toCredentials,
   toDocument,
   toDocumentSummary,
   toPage,
+  toParty,
   toSigningRequestResult,
   toTag,
 } from "./models.js";
@@ -314,6 +317,63 @@ export class AutosignlyClient {
   // -- tags ----------------------------------------------------------------
 
   /** Return one page of the company tag pool for this environment. */
+  /**
+   * Return one page of the company parties for this environment.
+   *
+   * `name` matches a fragment of the name, given name, tax id, e-mail or
+   * phone. `type` narrows the page to COMPANY or PERSON. There is no
+   * sort: the searchable fields are stored encrypted, so the server cannot
+   * order by them.
+   */
+  async listParties(
+    options: { name?: string; type?: string; page?: number; size?: number } = {},
+  ): Promise<Page<Party>> {
+    const params = new URLSearchParams({
+      page: String(options.page ?? 0),
+      size: String(options.size ?? 20),
+    });
+    if (options.name) params.set("name", options.name);
+    if (options.type) params.set("type", options.type);
+
+    const payload = await this.#request<Json>("GET", `/parties?${params}`);
+    return toPage(payload, toParty);
+  }
+
+  /** Return one party. Unknown in this environment throws `NotFoundError`. */
+  async getParty(partyId: string): Promise<Party> {
+    return toParty((await this.#request<Json>("GET", `/parties/${partyId}`)) ?? {});
+  }
+
+  /**
+   * Add a party to the company in this environment.
+   *
+   * A party with the same tax id (COMPANY) or e-mail (PERSON) is rejected
+   * rather than duplicated, so this call is not safe to repeat blindly — look
+   * the party up first when retrying.
+   */
+  async createParty(party: Party): Promise<Party> {
+    const payload = await this.#request<Json>("POST", "/parties", { json: partyToPayload(party) });
+    return toParty(payload ?? {});
+  }
+
+  /**
+   * Replace the party data.
+   *
+   * Every field is taken from `party`, so send the whole party, not only what
+   * changed.
+   */
+  async updateParty(partyId: string, party: Party): Promise<Party> {
+    const payload = await this.#request<Json>("PUT", `/parties/${partyId}`, {
+      json: partyToPayload(party),
+    });
+    return toParty(payload ?? {});
+  }
+
+  /** Remove the party. Documents already signed keep their copy of the data. */
+  async deleteParty(partyId: string): Promise<void> {
+    await this.#request<null>("DELETE", `/parties/${partyId}`);
+  }
+
   async listTags(options: { name?: string; page?: number; size?: number } = {}): Promise<Page<Tag>> {
     const params = new URLSearchParams({
       page: String(options.page ?? 0),

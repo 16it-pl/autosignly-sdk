@@ -345,6 +345,15 @@ components:
         page:
           $ref: '#/components/schemas/PageInfo'
       type: object
+    PageResponsePartyResponseV1:
+      properties:
+        content:
+          items:
+            $ref: '#/components/schemas/Party'
+          type: array
+        page:
+          $ref: '#/components/schemas/PageInfo'
+      type: object
     PageResponseTagResponseV1:
       properties:
         content:
@@ -354,6 +363,137 @@ components:
         page:
           $ref: '#/components/schemas/PageInfo'
       type: object
+    Party:
+      description: A counterparty of the company — the other side of a document sent for signing. Parties live in the environment
+        the API key belongs to, so a sandbox key never sees production parties.
+      properties:
+        address:
+          $ref: '#/components/schemas/PartyAddress'
+          description: Registered address.
+          type: object
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+          description: When the party was created.
+          examples:
+          - 2026-08-27 08:14:31+00:00
+          type: string
+        email:
+          description: E-mail address.
+          examples:
+          - kontakt@acme.pl
+          type: string
+        firstname:
+          description: Given name. Only a PERSON has one.
+          examples:
+          - Jan
+          type: string
+        id:
+          description: Unique party identifier.
+          examples:
+          - 8f14e45f-ceea-467a-9575-1c1e0f9a3b21
+          type: string
+        name:
+          description: Company name for a COMPANY, surname for a PERSON.
+          examples:
+          - Acme Sp. z o.o.
+          type: string
+        phone:
+          description: Phone number.
+          examples:
+          - '+48500100200'
+          type: string
+        taxId:
+          description: Tax identifier of a COMPANY (NIP for a Polish party).
+          examples:
+          - '5842831253'
+          type: string
+        type:
+          $ref: '#/components/schemas/PartyType'
+          description: Business or natural person.
+          examples:
+          - COMPANY
+          type: string
+      type: object
+    PartyAddress:
+      description: Registered address of a party.
+      properties:
+        city:
+          description: City.
+          examples:
+          - Warszawa
+          type: string
+        countryCode:
+          description: ISO 3166-1 alpha-2 country code. A Polish address makes the tax id subject to the Polish NIP checksum.
+          examples:
+          - PL
+          type: string
+        number:
+          description: Building and flat number.
+          examples:
+          - 12/34
+          type: string
+        postalCode:
+          description: Postal code.
+          examples:
+          - 00-001
+          type: string
+        street:
+          description: Street name.
+          examples:
+          - Marszalkowska
+          type: string
+      type: object
+    PartyRequest:
+      description: Party to create or replace.
+      properties:
+        address:
+          $ref: '#/components/schemas/PartyAddress'
+          description: Registered address. Required for a COMPANY.
+          type: object
+        email:
+          description: E-mail address. Required for a PERSON.
+          examples:
+          - kontakt@acme.pl
+          type: string
+        firstname:
+          description: Given name. Required for a PERSON.
+          examples:
+          - Jan
+          type: string
+        name:
+          description: Company name for a COMPANY, surname for a PERSON.
+          examples:
+          - Acme Sp. z o.o.
+          pattern: \S
+          type: string
+        phone:
+          description: Phone number.
+          examples:
+          - '+48500100200'
+          type: string
+        taxId:
+          description: Tax identifier. Required for a COMPANY; a Polish address makes it subject to the NIP checksum.
+          examples:
+          - '5842831253'
+          type: string
+        type:
+          $ref: '#/components/schemas/PartyType'
+          description: Business or natural person. A COMPANY needs a taxId and an address; a PERSON needs a firstname and
+            an e-mail.
+          examples:
+          - COMPANY
+          type: string
+      required:
+      - type
+      - name
+      type: object
+    PartyType:
+      description: Whether the party is a business (identified by a tax id) or a natural person (identified by a name and
+        an e-mail).
+      enum:
+      - COMPANY
+      - PERSON
+      type: string
     SendForSigningRequest:
       description: 'Request body for POST /publics/v1/documents/{documentId}/signings.
 
@@ -494,6 +634,11 @@ components:
           examples:
           - '+48600100200'
           type: string
+        sandboxSignUrl:
+          description: Sandbox only. Signing page URL for the current unsigned signer. Always null in production.
+          examples:
+          - https://sign.example.com/s/abc123?hmac=xyz&expires=1234567890
+          type: string
         signatureType:
           $ref: '#/components/schemas/SignatureType'
           description: Signature type required from this signer.
@@ -511,7 +656,7 @@ components:
       type: object
     SignerStatusResponse:
       description: Status and signing link for a single signer. Only the first signer in signing order has signUrl and expiresAt
-        populated; the remaining signers receive their link by email when their turn comes.
+        populated. Remaining signers receive their link by email when their turn comes.
       properties:
         email:
           description: Signer's email address.
@@ -628,8 +773,8 @@ components:
       - signers
       type: object
     UploadPdfAndSignResponse:
-      description: Result of uploading a PDF and sending it for signing. Signing links are delivered by the system directly
-        to each signer by email.
+      description: Result of uploading a PDF and sending it for signing. Signing links are emailed in production; in sandbox
+        they are not sent — use GET document info for sandboxSignUrl.
       properties:
         documentId:
           description: ID of the created document.
@@ -673,7 +818,7 @@ components:
       - SMS
       type: string
 info:
-  title: Autodocuments API
+  title: Autosignly API
   version: v1
 openapi: 3.1.0
 paths:
@@ -898,8 +1043,8 @@ paths:
     post:
       description: 'Uploads a PDF file and immediately sends it to the provided signers.
 
-        Signing links are delivered by the system directly to each signer by email. Only the `documentId` is returned so the
-        caller can track the document status later.
+        Signing links are emailed in production. In sandbox they are not emailed — poll GET document info for `sandboxSignUrl`
+        on the current unsigned signer. Only the `documentId` is returned so the caller can track the document status later.
 
         '
       parameters:
@@ -1236,7 +1381,8 @@ paths:
 
 
         **Response signers:** only the first signer (by `order`) receives a `signUrl` and `expiresAt` immediately; remaining
-        signers receive their link by email when their turn comes (link valid 48 h from sending).
+        signers receive their link by email when their turn comes. In sandbox, remaining signers: poll GET document info for
+        `sandboxSignUrl`. Link valid 48 h from sending.
 
         '
       parameters:
@@ -1349,6 +1495,235 @@ paths:
       summary: Set document tags
       tags:
       - Public API – document signing
+  /api/publics/v1/parties:
+    get:
+      description: 'Returns a paged list of the company parties in the environment the API key belongs to. Optionally narrow
+        the list with `name` (matches the name, given name, tax id, e-mail or phone) and with `type`. The order is stable
+        but unspecified; `sort` is not supported because the searchable fields are stored encrypted.
+
+        '
+      parameters:
+      - description: Fragment of a name, tax id, e-mail or phone
+        example: acme
+        in: query
+        name: name
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          default: '0'
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        schema:
+          default: '20'
+          format: int32
+          type: integer
+      - in: query
+        name: sort
+        schema:
+          items:
+            type: string
+          type: array
+      - description: Narrow the list to businesses or to natural persons
+        example: COMPANY
+        in: query
+        name: type
+        schema:
+          $ref: '#/components/schemas/PartyType'
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponsePartyResponseV1'
+          description: Party list returned successfully
+        '400':
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        '401':
+          description: Invalid API key or secret
+      summary: List parties
+      tags:
+      - Public API – parties
+    post:
+      description: 'Adds a party to the company in the environment the API key belongs to. A COMPANY needs a `taxId` and an
+        `address`; a PERSON needs a `firstname` and an `email`. A Polish address makes the tax id subject to the NIP checksum.
+        A party that already exists with the same tax id (COMPANY) or e-mail (PERSON) is rejected rather than duplicated.
+
+        '
+      parameters:
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartyRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Party'
+          description: Party added
+        '400':
+          description: Invalid party data, a missing header, or a party with the same tax id or e-mail already exists
+        '401':
+          description: Invalid API key or secret
+      summary: Add party
+      tags:
+      - Public API – parties
+  /api/publics/v1/parties/{partyId}:
+    delete:
+      description: Removes the party from the company in the environment the API key belongs to. Documents already signed
+        keep their copy of the party data.
+      parameters:
+      - description: Party identifier
+        in: path
+        name: partyId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '204':
+          description: Party deleted
+        '400':
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        '401':
+          description: Invalid API key or secret
+        '404':
+          description: No such party in the environment of this API key
+      summary: Delete party
+      tags:
+      - Public API – parties
+    get:
+      description: Returns one party of the company, in the environment the API key belongs to.
+      parameters:
+      - description: Party identifier
+        in: path
+        name: partyId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Party'
+          description: Party returned successfully
+        '400':
+          description: X-API-KEY or X-API-SECRET header is missing or blank
+        '401':
+          description: Invalid API key or secret
+        '404':
+          description: No such party in the environment of this API key
+      summary: Get party
+      tags:
+      - Public API – parties
+    put:
+      description: Replaces the party data. Every field is taken from the request, so send the complete party, not only what
+        changed.
+      parameters:
+      - description: Party identifier
+        in: path
+        name: partyId
+        required: true
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartyRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Party'
+          description: Party replaced
+        '400':
+          description: Invalid party data or a missing header
+        '401':
+          description: Invalid API key or secret
+        '404':
+          description: No such party in the environment of this API key
+      summary: Replace party
+      tags:
+      - Public API – parties
   /api/publics/v1/tags:
     get:
       description: 'Returns a paged list of tags belonging to the company identified by the API key. Tags are the labels shown
@@ -1488,9 +1863,15 @@ paths:
       summary: Delete tag
       tags:
       - Public API – tags
+servers:
+- description: Production and sandboxes
+  url: https://app.autosignly.eu
 tags:
 - description: Endpoints accessible via API key + secret (X-API-KEY and X-API-SECRET headers). No user login token required.
   name: Public API – document signing
+- description: Counterparties of the company, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key
+    decides the environment, so a sandbox key never sees production parties.
+  name: Public API – parties
 - description: Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key decides the
     environment, so a sandbox key never sees production tags.
   name: Public API – tags

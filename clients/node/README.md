@@ -135,6 +135,38 @@ than an error:
 const tagged = await client.listDocuments({ tagId: ["contracts", "2026"], status: "SIGNED" });
 ```
 
+## Parties
+
+A party is the other side of a document — a business or a natural person the company signs with.
+
+```ts
+import { PartyType } from "@16it/autosignly";
+
+const acme = await client.createParty({
+  type: PartyType.COMPANY,
+  name: "Acme Sp. z o.o.",
+  taxId: "5842831253",
+  email: "kontakt@acme.pl",
+  address: { street: "Marszalkowska", number: "12/34", postalCode: "00-001", city: "Warszawa", countryCode: "PL" },
+});
+
+const page = await client.listParties({ name: "acme", type: PartyType.COMPANY });
+
+await client.updateParty(acme.id!, { type: PartyType.COMPANY, name: "Acme Renamed", taxId: "5842831253" });
+await client.deleteParty(acme.id!);
+```
+
+A `COMPANY` needs a `taxId` and an `address`; a `PERSON` needs a `firstname` and an `email`. A
+Polish address makes the tax id subject to the NIP checksum.
+
+`updateParty` replaces the whole party, so send every field you want to keep. Creating a party
+that already exists — same tax id for a `COMPANY`, same e-mail for a `PERSON` — is rejected rather
+than deduplicated, so look the party up before retrying a failed create.
+
+Parties belong to the environment of the key that created them: a sandbox key never sees a
+production party. Listing has no `sort` — the searchable fields are stored encrypted, so the
+server cannot order by them.
+
 ## Webhooks
 
 Autosignly signs every delivery with `X-Webhook-Signature` and
