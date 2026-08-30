@@ -183,6 +183,34 @@ export interface Document {
   fileUrl?: string;
 }
 
+/** One signature type a signer from a given country may be asked for. */
+export interface AllowedSignatureType {
+  type?: string;
+  /** Only for AES: how such a signer may confirm their identity. Empty for SES and QES. */
+  verificationMethods: string[];
+}
+
+/**
+ * What may be asked of a signer from one country.
+ *
+ * Sending a signer with a combination this policy does not list is rejected when
+ * the document goes out, so read the policy before building your signer form.
+ */
+export interface SignaturePolicy {
+  country?: string;
+  /** True for the fallback entry, which covers every country without its own rules. */
+  defaultPolicy: boolean;
+  signatureTypes: AllowedSignatureType[];
+}
+
+/** A country an SMS verification code can be delivered to. */
+export interface SmsCountry {
+  countryCode?: string;
+  name?: string;
+  /** International dialing prefix the phone number has to start with, e.g. "+48". */
+  dialingPrefix?: string;
+}
+
 /**
  * A file attached to a document.
  *
@@ -310,6 +338,29 @@ export function toSignerStatus(payload: Json): SignerStatus {
 }
 
 const list = (value: unknown): Json[] => (Array.isArray(value) ? (value as Json[]) : []);
+
+export function toAllowedSignatureType(payload: Json): AllowedSignatureType {
+  return {
+    type: str(payload.type),
+    verificationMethods: list(payload.verificationMethods).map(String),
+  };
+}
+
+export function toSignaturePolicy(payload: Json): SignaturePolicy {
+  return {
+    country: str(payload.country),
+    defaultPolicy: payload.defaultPolicy === true,
+    signatureTypes: list(payload.signatureTypes).map(toAllowedSignatureType),
+  };
+}
+
+export function toSmsCountry(payload: Json): SmsCountry {
+  return {
+    countryCode: str(payload.countryCode),
+    name: str(payload.name),
+    dialingPrefix: str(payload.dialingPrefix),
+  };
+}
 
 export function toAttachment(payload: Json): Attachment {
   return {

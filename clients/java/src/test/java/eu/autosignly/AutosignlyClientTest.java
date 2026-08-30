@@ -218,6 +218,34 @@ class AutosignlyClientTest {
     }
 
     @Test
+    void getSignaturePolicyAsksForTheCountryOfTheSigner() {
+        answer(200, """
+                {"country":"DE","defaultPolicy":false,
+                 "signatureTypes":[{"type":"AES","verificationMethods":["SMS"]},{"type":"SES"}]}""");
+
+        var policy = client.getSignaturePolicy("DE");
+
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/signature-policies/DE");
+        assertThat(policy.country()).isEqualTo("DE");
+        assertThat(policy.signatureTypes().get(0).verificationMethods()).containsExactly("SMS");
+        // An entry with no verificationMethods must not blow up — SES and QES never carry any.
+        assertThat(policy.signatureTypes().get(1).verificationMethods()).isEmpty();
+    }
+
+    @Test
+    void listSmsCountriesParsesDialingPrefixes() {
+        answer(200, "[{\"countryCode\":\"PL\",\"name\":\"Poland\",\"dialingPrefix\":\"+48\"}]");
+
+        var countries = client.listSmsCountries();
+
+        assertThat(calls.get(0).path()).isEqualTo("/api/publics/v1/sms-countries");
+        assertThat(countries).singleElement().satisfies(country -> {
+            assertThat(country.countryCode()).isEqualTo("PL");
+            assertThat(country.dialingPrefix()).isEqualTo("+48");
+        });
+    }
+
+    @Test
     void uploadPdfStoresTheDocumentWithoutSendingIt() {
         answer(200, "{\"documentId\":\"d-7\"}");
 

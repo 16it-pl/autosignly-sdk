@@ -214,6 +214,35 @@ test("uploadAndSign posts the pdf and the request as multipart", async () => {
   assert.equal((form.get("file") as File).name, "umowa.pdf");
 });
 
+test("getSignaturePolicy asks for the country of the signer", async () => {
+  const { client, calls } = buildClient(() =>
+    json({
+      country: "DE",
+      defaultPolicy: false,
+      signatureTypes: [{ type: "AES", verificationMethods: ["SMS"] }, { type: "SES" }],
+    }),
+  );
+
+  const policy = await client.getSignaturePolicy("DE");
+
+  assert.ok(calls[0].url.endsWith("/signature-policies/DE"));
+  assert.equal(policy.country, "DE");
+  assert.deepEqual(policy.signatureTypes[0].verificationMethods, ["SMS"]);
+  // An entry with no verificationMethods must not blow up — SES and QES never carry any.
+  assert.deepEqual(policy.signatureTypes[1].verificationMethods, []);
+});
+
+test("listSmsCountries parses dialing prefixes", async () => {
+  const { client, calls } = buildClient(() =>
+    json([{ countryCode: "PL", name: "Poland", dialingPrefix: "+48" }]),
+  );
+
+  const countries = await client.listSmsCountries();
+
+  assert.ok(calls[0].url.endsWith("/sms-countries"));
+  assert.equal(countries[0].dialingPrefix, "+48");
+});
+
 test("uploadPdf stores the document without sending it", async () => {
   const { client, calls } = buildClient(() => json({ documentId: "d-7" }));
 

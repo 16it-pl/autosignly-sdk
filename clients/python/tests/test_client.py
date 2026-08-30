@@ -203,6 +203,39 @@ def test_upload_and_sign_posts_multipart_with_json_part():
     assert seen["idempotency"]
 
 
+def test_get_signature_policy_asks_for_the_country_of_the_signer():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={
+            "country": "DE",
+            "defaultPolicy": False,
+            "signatureTypes": [{"type": "AES", "verificationMethods": ["SMS"]}, {"type": "SES"}],
+        })
+
+    with build_client(handler) as client:
+        policy = client.get_signature_policy("DE")
+
+    assert seen["url"].endswith("/signature-policies/DE")
+    assert policy.country == "DE"
+    assert policy.signature_types[0].verification_methods == ["SMS"]
+    # An entry with no verificationMethods must not blow up - SES and QES never carry any.
+    assert policy.signature_types[1].verification_methods == []
+
+
+def test_list_sms_countries_parses_dialing_prefixes():
+    def handler(request):
+        assert str(request.url).endswith("/sms-countries")
+        return httpx.Response(200, json=[{"countryCode": "PL", "name": "Poland", "dialingPrefix": "+48"}])
+
+    with build_client(handler) as client:
+        countries = client.list_sms_countries()
+
+    assert countries[0].country_code == "PL"
+    assert countries[0].dialing_prefix == "+48"
+
+
 def test_upload_pdf_stores_the_document_without_sending_it():
     seen = {}
 

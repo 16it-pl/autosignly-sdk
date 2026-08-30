@@ -14,14 +14,17 @@ import httpx
 from . import errors
 from ._version import __version__
 from .models import (
+    AllowedSignatureType,
     Attachment,
     Credentials,
     Document,
     DocumentSummary,
     Page,
     Party,
+    SignaturePolicy,
     Signer,
     SigningRequestResult,
+    SmsCountry,
     Tag,
 )
 
@@ -99,6 +102,27 @@ class AutosignlyClient:
         """
         payload = self._request("GET", "/credentials")
         return Credentials.from_payload(payload)
+
+    # -- signing rules -------------------------------------------------------
+
+    def get_signature_policy(self, country: str) -> SignaturePolicy:
+        """Return the rules that apply to a signer from this country.
+
+        A country without its own rules is answered with the fallback policy
+        rather than an error, so this is safe to call for any signer.
+        """
+        payload = self._request("GET", f"/signature-policies/{country}")
+        return SignaturePolicy.from_payload(payload)
+
+    def list_sms_countries(self) -> list[SmsCountry]:
+        """Return the countries an SMS verification code can be delivered to.
+
+        A signer verified by SMS needs a phone number from one of these; a number
+        outside the list is refused when the code is requested — which happens
+        after the document has already gone out.
+        """
+        payload = self._request("GET", "/sms-countries")
+        return [SmsCountry.from_payload(item) for item in payload or []]
 
     # -- documents -----------------------------------------------------------
 

@@ -1,5 +1,26 @@
 components:
   schemas:
+    AllowedSignatureType:
+      description: One signature type a signer from this country may be asked for, together with the ways they may confirm
+        their identity.
+      properties:
+        type:
+          $ref: '#/components/schemas/SignatureType'
+          description: Signature type accepted for this country.
+          examples:
+          - AES
+          type: string
+        verificationMethods:
+          description: 'Only for AES: verification methods the country policy accepts and this environment implements. Empty
+            for SES and QES, which do not verify the signer separately. BIOMETRIC and WEBAUTHN are accepted for AES in every
+            country and are therefore not listed here.'
+          examples:
+          - - SMS
+            - WK
+          items:
+            $ref: '#/components/schemas/VerificationMethod'
+          type: array
+      type: object
     ApiKeyValidationResponseV1:
       properties:
         valid:
@@ -592,6 +613,30 @@ components:
       - STAMP
       - SIGNATURES_CARD
       type: string
+    SignaturePolicy:
+      description: Which signature types may be used for a signer from a given country, and how such a signer may confirm
+        their identity. Send a signer with a combination that is not listed here and the signing request is rejected with
+        400.
+      properties:
+        country:
+          description: Country these rules apply to, ISO 3166-1 alpha-2. Null when the entry carries the fallback rules used
+            for every country without its own policy.
+          examples:
+          - PL
+          type:
+          - string
+          - 'null'
+        defaultPolicy:
+          description: True for the fallback entry, which applies to any country not listed separately.
+          examples:
+          - false
+          type: boolean
+        signatureTypes:
+          description: Signature types allowed for a signer from this country.
+          items:
+            $ref: '#/components/schemas/AllowedSignatureType'
+          type: array
+      type: object
     SignatureType:
       description: 'Signature type: QES (qualified), AES (advanced), SES (simple)'
       enum:
@@ -696,6 +741,26 @@ components:
       - AWAITING_SIGNATURE
       - PENDING
       type: string
+    SmsCountry:
+      description: A country an SMS verification code can be delivered to. A signer verified by SMS needs a phone number in
+        one of these countries; a number outside the list is rejected when the code is requested.
+      properties:
+        countryCode:
+          description: Country code, ISO 3166-1 alpha-2.
+          examples:
+          - PL
+          type: string
+        dialingPrefix:
+          description: International dialing prefix, the phone number has to start with it.
+          examples:
+          - '+48'
+          type: string
+        name:
+          description: Country name in English.
+          examples:
+          - Poland
+          type: string
+      type: object
     TagRequest:
       description: Tag to add to the company tag list.
       properties:
@@ -905,13 +970,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
@@ -1589,13 +1654,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
@@ -1820,6 +1885,89 @@ paths:
       summary: Replace party
       tags:
       - Public API – parties
+  /api/publics/v1/signature-policies/{country}:
+    get:
+      description: 'The rules that apply to a signer from this country. A country without its own rules is answered with the
+        fallback policy (`defaultPolicy: true`) rather than a 404, so this call is safe to make for any country your signer
+        comes from.
+
+        '
+      parameters:
+      - description: Signer country, ISO 3166-1 alpha-2
+        example: PL
+        in: path
+        name: country
+        required: true
+        schema:
+          pattern: ^[A-Za-z]{2}$
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignaturePolicy'
+          description: Rules for this country, or the fallback ones
+        '400':
+          description: Country is not a two-letter ISO 3166-1 alpha-2 code
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+      summary: Get the signature policy of one country
+      tags:
+      - Public API – signing rules
+  /api/publics/v1/sms-countries:
+    get:
+      description: 'Where an SMS verification code can be delivered. A signer verified by SMS needs a phone number from one
+        of these countries — a number outside the list is rejected when the code is requested, which happens after the document
+        has already gone out, so check it while you still have the signer in front of you.
+
+
+        The list changes as coverage is added, so read it rather than hard-coding it.
+
+        '
+      parameters:
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          pattern: \S
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SmsCountry'
+                type: array
+          description: Countries an SMS code can be delivered to
+        '401':
+          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+      summary: List countries an SMS code can be sent to
+      tags:
+      - Public API – signing rules
   /api/publics/v1/tags:
     get:
       description: 'Returns a paged list of tags belonging to the company identified by the API key. Tags are the labels shown
@@ -1837,13 +1985,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
@@ -1987,6 +2135,10 @@ tags:
 - description: Counterparties of the company, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key
     decides the environment, so a sandbox key never sees production parties.
   name: Public API – parties
+- description: 'What may be asked of a signer, and where a verification code can reach them. Read these before building your
+    own signer form: they tell you which combinations a signing request will accept, so you find out here rather than from
+    a 400.'
+  name: Public API – signing rules
 - description: Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key decides the
     environment, so a sandbox key never sees production tags.
   name: Public API – tags

@@ -21,11 +21,15 @@ import {
   type Page,
   type Party,
   type Signer,
+  type SignaturePolicy,
   type SigningRequestResult,
+  type SmsCountry,
   type Tag,
   partyToPayload,
   signerToPayload,
   toAttachment,
+  toSignaturePolicy,
+  toSmsCountry,
   toCredentials,
   toDocument,
   toDocumentSummary,
@@ -142,6 +146,30 @@ export class AutosignlyClient {
   }
 
   // -- documents -----------------------------------------------------------
+
+  // -- signing rules --------------------------------------------------------
+
+  /**
+   * The rules that apply to a signer from this country.
+   *
+   * A country without its own rules is answered with the fallback policy rather
+   * than an error, so this is safe to call for any signer.
+   */
+  async getSignaturePolicy(country: string): Promise<SignaturePolicy> {
+    return toSignaturePolicy((await this.#request<Json>("GET", `/signature-policies/${country}`)) ?? {});
+  }
+
+  /**
+   * The countries an SMS verification code can be delivered to.
+   *
+   * A signer verified by SMS needs a phone number from one of these; a number
+   * outside the list is refused when the code is requested — which happens after
+   * the document has already gone out.
+   */
+  async listSmsCountries(): Promise<SmsCountry[]> {
+    const payload = await this.#request<Json[]>("GET", "/sms-countries");
+    return (payload ?? []).map(toSmsCountry);
+  }
 
   /** Return one page of documents belonging to this environment. */
   async listDocuments(options: ListDocumentsOptions = {}): Promise<Page<DocumentSummary>> {

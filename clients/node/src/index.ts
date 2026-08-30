@@ -42,6 +42,7 @@ export {
   VerificationMethod,
 } from "./models.js";
 export type {
+  AllowedSignatureType,
   Attachment,
   Credentials,
   Document,
@@ -50,9 +51,11 @@ export type {
   Party,
   PartyAddress,
   Signer,
+  SignaturePolicy,
   SignerDetails,
   SignerStatus,
   SigningRequestResult,
+  SmsCountry,
   Tag,
 } from "./models.js";
 export * as webhooks from "./webhooks.js";

@@ -26,6 +26,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    AllowedSignatureType,
     Attachment,
     AttachmentFormat,
     AttachmentStatus,
@@ -39,6 +40,7 @@ from .models import (
     PartyAddress,
     PartyType,
     SignatureMode,
+    SignaturePolicy,
     SignatureType,
     Signer,
     SignerDetails,
@@ -46,6 +48,7 @@ from .models import (
     SigningMode,
     SigningRequestResult,
     SigningStatus,
+    SmsCountry,
     Tag,
     VerificationMethod,
 )
@@ -62,6 +65,7 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "ValidationError",
+    "AllowedSignatureType",
     "Attachment",
     "AttachmentFormat",
     "AttachmentStatus",
@@ -75,6 +79,7 @@ __all__ = [
     "PartyAddress",
     "PartyType",
     "SignatureMode",
+    "SignaturePolicy",
     "SignatureType",
     "Signer",
     "SignerDetails",
@@ -82,6 +87,7 @@ __all__ = [
     "SigningMode",
     "SigningRequestResult",
     "SigningStatus",
+    "SmsCountry",
     "Tag",
     "VerificationMethod",
     "webhooks",

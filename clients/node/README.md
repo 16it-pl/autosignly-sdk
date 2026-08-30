@@ -77,6 +77,29 @@ A document can be downloaded while signing is still in progress; it then carries
 only the signatures collected so far. Wait for `SIGNED` if you want the final,
 sealed file.
 
+## What a signer may be asked for
+
+The rules differ by country, and a signer sent with a combination their country does not allow is
+rejected when the document goes out. Read them first:
+
+```ts
+const policy = await client.getSignaturePolicy(signer.country);
+for (const allowed of policy.signatureTypes) {
+  console.log(allowed.type, allowed.verificationMethods);
+}
+```
+
+A country without its own rules answers with the fallback policy rather than an error.
+
+Verifying by SMS also needs a reachable phone number:
+
+```ts
+const countries = await client.listSmsCountries();
+```
+
+A number outside that list is refused when the code is requested — which happens after the document
+has already gone out, so check it while preparing the signer.
+
 ## Attachments
 
 Files attached to a document are converted to PDF and merged into it when it is

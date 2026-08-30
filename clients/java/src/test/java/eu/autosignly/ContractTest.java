@@ -91,6 +91,9 @@ class ContractTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> models() {
         return Stream.of(
                 org.junit.jupiter.params.provider.Arguments.of(Models.Attachment.class, "AttachmentResponse"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.SignaturePolicy.class, "SignaturePolicy"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.AllowedSignatureType.class, "AllowedSignatureType"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.SmsCountry.class, "SmsCountry"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Document.class, "DocumentInfoResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.DocumentSummary.class, "DocumentListItemResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.SignerDetails.class, "SignerResponse"),
@@ -172,6 +175,8 @@ class ContractTest {
                 "/api/publics/v1/documents",
                 "/api/publics/v1/documents/{documentId}",
                 "/api/publics/v1/documents/{documentId}/attachments",
+                "/api/publics/v1/signature-policies/{country}",
+                "/api/publics/v1/sms-countries",
                 "/api/publics/v1/documents/{documentId}/attachments/{attachmentId}",
                 "/api/publics/v1/documents/signings",
                 "/api/publics/v1/documents/{documentId}/signings",

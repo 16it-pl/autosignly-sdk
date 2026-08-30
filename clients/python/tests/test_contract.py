@@ -18,16 +18,19 @@ import yaml
 
 from autosignly.client import _to_page
 from autosignly.models import (
+    AllowedSignatureType,
     Attachment,
     Credentials,
     Document,
     DocumentSummary,
     Party,
     PartyAddress,
+    SignaturePolicy,
     Signer,
     SignerDetails,
     SignerStatus,
     SigningRequestResult,
+    SmsCountry,
     Tag,
 )
 
@@ -69,6 +72,9 @@ def keys_read_by(parse: Callable[[dict], Any]) -> set[str]:
 
 PARSERS = [
     ("Attachment", "AttachmentResponse", Attachment.from_payload),
+    ("SignaturePolicy", "SignaturePolicy", SignaturePolicy.from_payload),
+    ("AllowedSignatureType", "AllowedSignatureType", AllowedSignatureType.from_payload),
+    ("SmsCountry", "SmsCountry", SmsCountry.from_payload),
     ("Document", "DocumentInfoResponse", Document.from_payload),
     ("DocumentSummary", "DocumentListItemResponse", DocumentSummary.from_payload),
     ("SignerDetails", "SignerResponse", SignerDetails.from_payload),
@@ -165,6 +171,8 @@ def test_every_endpoint_the_client_calls_exists() -> None:
         "/api/publics/v1/documents",
         "/api/publics/v1/documents/{documentId}",
         "/api/publics/v1/documents/{documentId}/attachments",
+        "/api/publics/v1/signature-policies/{country}",
+        "/api/publics/v1/sms-countries",
         "/api/publics/v1/documents/{documentId}/attachments/{attachmentId}",
         "/api/publics/v1/documents/signings",
         "/api/publics/v1/documents/{documentId}/signings",

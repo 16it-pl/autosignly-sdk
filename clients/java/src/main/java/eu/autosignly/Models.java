@@ -167,6 +167,37 @@ public final class Models {
         }
     }
 
+    /** One signature type a signer from a given country may be asked for. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record AllowedSignatureType(String type, List<String> verificationMethods) {
+
+        /** Only for AES: how such a signer may confirm their identity. Empty for SES and QES. */
+        public List<String> verificationMethods() {
+            return verificationMethods == null ? List.of() : verificationMethods;
+        }
+    }
+
+    /**
+     * What may be asked of a signer from one country.
+     *
+     * <p>Sending a signer with a combination this policy does not list is rejected when
+     * the document goes out, so read the policy before building your signer form.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SignaturePolicy(
+            String country,
+            boolean defaultPolicy,
+            List<AllowedSignatureType> signatureTypes) {
+
+        public List<AllowedSignatureType> signatureTypes() {
+            return signatureTypes == null ? List.of() : signatureTypes;
+        }
+    }
+
+    /** A country an SMS verification code can be delivered to. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SmsCountry(String countryCode, String name, String dialingPrefix) {}
+
     /**
      * A file attached to a document.
      *

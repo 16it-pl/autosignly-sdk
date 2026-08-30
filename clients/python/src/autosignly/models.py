@@ -288,6 +288,64 @@ class SignerDetails:
 
 
 @dataclass(slots=True)
+class AllowedSignatureType:
+    """One signature type a signer from a given country may be asked for."""
+
+    type: str | None = None
+    #: Only for AES: how such a signer may confirm their identity. Empty for SES and QES.
+    verification_methods: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "AllowedSignatureType":
+        return cls(
+            type=payload.get("type"),
+            verification_methods=list(payload.get("verificationMethods") or []),
+        )
+
+
+@dataclass(slots=True)
+class SignaturePolicy:
+    """What may be asked of a signer from one country.
+
+    Sending a signer with a combination this policy does not list is rejected when
+    the document goes out, so read the policy before building your signer form.
+    """
+
+    country: str | None = None
+    #: True for the fallback entry, which covers every country without its own rules.
+    default_policy: bool = False
+    signature_types: list[AllowedSignatureType] = field(default_factory=list)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "SignaturePolicy":
+        return cls(
+            country=payload.get("country"),
+            default_policy=bool(payload.get("defaultPolicy", False)),
+            signature_types=[
+                AllowedSignatureType.from_payload(item) for item in payload.get("signatureTypes") or []
+            ],
+        )
+
+
+@dataclass(slots=True)
+class SmsCountry:
+    """A country an SMS verification code can be delivered to."""
+
+    country_code: str | None = None
+    name: str | None = None
+    #: International dialing prefix the phone number has to start with, e.g. "+48".
+    dialing_prefix: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "SmsCountry":
+        return cls(
+            country_code=payload.get("countryCode"),
+            name=payload.get("name"),
+            dialing_prefix=payload.get("dialingPrefix"),
+        )
+
+
+@dataclass(slots=True)
 class Attachment:
     """A file attached to a document.
 

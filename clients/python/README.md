@@ -72,6 +72,28 @@ open("signed.pdf", "wb").write(pdf)
 A document that is still being signed can be downloaded as well - it then carries only the
 signatures collected so far.
 
+## What a signer may be asked for
+
+The rules differ by country, and a signer sent with a combination their country does not allow is
+rejected when the document goes out. Read them first:
+
+```python
+policy = client.get_signature_policy(signer.country)
+for allowed in policy.signature_types:
+    print(allowed.type, allowed.verification_methods)
+```
+
+A country without its own rules answers with the fallback policy rather than an error.
+
+Verifying by SMS also needs a reachable phone number:
+
+```python
+prefixes = {c.country_code: c.dialing_prefix for c in client.list_sms_countries()}
+```
+
+A number outside that list is refused when the code is requested — which happens after the document
+has already gone out, so check it while preparing the signer.
+
 ## Attachments
 
 Files attached to a document are converted to PDF and merged into it when it is sent for

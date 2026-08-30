@@ -33,8 +33,10 @@ import eu.autosignly.Models.DocumentSummary;
 import eu.autosignly.Models.Page;
 import eu.autosignly.Models.PageInfo;
 import eu.autosignly.Models.Party;
+import eu.autosignly.Models.SignaturePolicy;
 import eu.autosignly.Models.Signer;
 import eu.autosignly.Models.SigningRequestResult;
+import eu.autosignly.Models.SmsCountry;
 import eu.autosignly.Models.Tag;
 
 /**
@@ -167,6 +169,32 @@ public final class AutosignlyClient {
             }
         }
         return toPage(request("GET", query.toString(), null, null), DocumentSummary.class);
+    }
+
+    // -- signing rules --------------------------------------------------------
+
+    /**
+     * The rules that apply to a signer from this country.
+     *
+     * <p>A country without its own rules is answered with the fallback policy rather
+     * than an error, so this is safe to call for any signer.
+     */
+    public SignaturePolicy getSignaturePolicy(String country) {
+        return read(request("GET", "/signature-policies/" + country, null, null), SignaturePolicy.class);
+    }
+
+    /**
+     * The countries an SMS verification code can be delivered to.
+     *
+     * <p>A signer verified by SMS needs a phone number from one of these; a number
+     * outside the list is refused when the code is requested — which happens after
+     * the document has already gone out.
+     */
+    public List<SmsCountry> listSmsCountries() {
+        JsonNode payload = request("GET", "/sms-countries", null, null);
+        return payload == null || payload.isNull()
+                ? List.of()
+                : mapper.convertValue(payload, new TypeReference<List<SmsCountry>>() {});
     }
 
     /** The first page of documents, with the API's default page size. */
