@@ -1,6 +1,6 @@
 {
   "name": "@16it/autosignly",
-  "version": "0.1.5-dev.0",
+  "version": "0.1.5",
   "description": "Node.js client for the Autosignly API — send documents for eIDAS signature and verify webhook deliveries.",
   "keywords": [
     "autosignly",
