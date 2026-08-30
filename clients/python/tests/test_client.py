@@ -360,6 +360,25 @@ def test_maps_status_codes_to_errors(status, expected):
     assert raised.value.error_id == "abc"
 
 
+def test_a_retried_write_repeats_the_same_idempotency_key():
+    keys = []
+
+    def handler(request):
+        keys.append(request.headers.get("Idempotency-Key"))
+        if len(keys) == 1:
+            return httpx.Response(503, json={})
+        return httpx.Response(200, json={"id": "t-1", "name": "Umowy"})
+
+    with build_client(handler, max_retries=1) as client:
+        client.create_tag("Umowy")
+
+    # A retry that invents a new key is invisible to the server's deduplication,
+    # so the write would happen twice - the header would be there and mean nothing.
+    assert len(keys) == 2
+    assert keys[0] == keys[1]
+    assert keys[0]
+
+
 def test_retries_server_errors_then_succeeds():
     calls = {"n": 0}
 

@@ -313,6 +313,22 @@ test("downloadAttachment reports an attachment that is not converted yet", async
   await assert.rejects(() => client.downloadAttachment("d-1", "att-1"), NotFoundError);
 });
 
+test("a retried write repeats the same idempotency key", async () => {
+  let call = 0;
+  const { client, calls } = buildClient(
+    () => (call++ === 0 ? json({}, 503) : json({ id: "t-1", name: "Umowy" })),
+    1,
+  );
+
+  await client.createTag("Umowy");
+
+  // A retry that invents a new key is invisible to the server's deduplication,
+  // so the write would happen twice — the header would be there and mean nothing.
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].headers.get("Idempotency-Key"), calls[0].headers.get("Idempotency-Key"));
+  assert.ok(calls[0].headers.get("Idempotency-Key"));
+});
+
 test("a write carries an idempotency key, a read does not", async () => {
   const { client, calls } = buildClient(() => json({ id: "t-1", name: "Umowy" }));
 

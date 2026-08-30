@@ -495,6 +495,8 @@ public final class AutosignlyClient {
     private JsonNode request(String method, String path, JsonNode jsonBody, Multipart multipart) {
         URI url = URI.create(baseUrl + API_PREFIX + path);
 
+        String idempotencyKey = IDEMPOTENT_METHODS.contains(method) ? null : UUID.randomUUID().toString();
+
         Exception lastFailure = null;
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             HttpRequest.Builder builder = HttpRequest.newBuilder(url)
@@ -504,8 +506,8 @@ public final class AutosignlyClient {
                     .header("Accept", "application/json")
                     .header("User-Agent", "autosignly-java/" + VERSION);
 
-            if (!IDEMPOTENT_METHODS.contains(method)) {
-                builder.header("Idempotency-Key", UUID.randomUUID().toString());
+            if (idempotencyKey != null) {
+                builder.header("Idempotency-Key", idempotencyKey);
             }
 
             if (multipart != null) {

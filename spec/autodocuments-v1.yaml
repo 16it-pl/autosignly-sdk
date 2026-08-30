@@ -973,6 +973,16 @@ paths:
 
         '
       parameters:
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). A retry with the same key and the
+          same file+form body returns the stored response instead of storing the document again — see `POST /documents/{documentId}/signings`
+          for the full semantics (conflict cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1033,9 +1043,15 @@ paths:
 
             - Blank documentName
 
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
             '
         '401':
           description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Upload a PDF without sending it
       tags:
       - Public API – document signing
@@ -1048,6 +1064,16 @@ paths:
 
         '
       parameters:
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). A retry with the same key and the
+          same file+form body returns the stored response instead of uploading and sending the document again — see `POST
+          /documents/{documentId}/signings` for the full semantics (conflict cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1147,9 +1173,15 @@ paths:
 
             - Bean-validation failure on signer fields
 
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
             '
         '401':
           description: Invalid or missing X-API-KEY / X-API-SECRET headers
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Upload PDF and send for signing
       tags:
       - Public API – document signing
@@ -1262,6 +1294,16 @@ paths:
         required: true
         schema:
           type: string
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). A retry with the same key and the
+          same file returns the stored response instead of attaching the file again — see `POST /documents/{documentId}/signings`
+          for the full semantics (conflict cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1307,11 +1349,17 @@ paths:
 
             - Document is no longer editable, because it has already been sent for signing
 
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
             '
         '401':
           description: Invalid or missing X-API-KEY / X-API-SECRET headers
         '404':
           description: No such document in this company and environment
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Attach a file to a document
       tags:
       - Public API – document signing
@@ -1393,6 +1441,29 @@ paths:
         required: true
         schema:
           type: string
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId) — the same key used by two different
+          companies/environments never collides.
+
+
+          - First request with a given key: processed normally, the response is stored.
+
+          - Retry with the same key and the same request body: the stored response is returned as-is; the operation is not
+          executed again.
+
+          - Same key with a different request body: `409` (IDEMPOTENCY_KEY_REUSED).
+
+          - Same key while the first request is still in flight: `409` (IDEMPOTENCY_REQUEST_IN_PROGRESS).
+
+
+          Only successful (`2xx`) responses are cached — a failed request can be retried with the same key. Stored keys expire
+          after 24 h, after which the key can be reused.
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1433,11 +1504,17 @@ paths:
 
             - Bean-validation failure on signer fields (blank name/email, invalid country code, order < 1, etc.)
 
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
             '
         '401':
           description: Invalid or missing X-API-KEY / X-API-SECRET headers
         '403':
           description: Document does not belong to the company associated with the provided API key
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Send existing document for signing
       tags:
       - Public API – document signing
@@ -1568,6 +1645,15 @@ paths:
 
         '
       parameters:
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). See `POST /documents/{documentId}/signings`
+          for the full semantics (conflict cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1596,9 +1682,19 @@ paths:
                 $ref: '#/components/schemas/Party'
           description: Party added
         '400':
-          description: Invalid party data, a missing header, or a party with the same tax id or e-mail already exists
+          description: 'Invalid request. Possible reasons:
+
+            - Invalid party data, a missing header, or a party with the same tax id or e-mail already exists
+
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
+            '
         '401':
           description: Invalid API key or secret
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Add party
       tags:
       - Public API – parties
@@ -1790,6 +1886,15 @@ paths:
 
         '
       parameters:
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). See `POST /documents/{documentId}/signings`
+          for the full semantics (conflict cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
       - description: API key identifying the calling company
         in: header
         name: X-API-KEY
@@ -1818,9 +1923,19 @@ paths:
                 $ref: '#/components/schemas/TagResponse'
           description: Tag added, or the already existing one returned
         '400':
-          description: Name is blank, longer than 15 characters, or a header is missing
+          description: 'Invalid request. Possible reasons:
+
+            - Name is blank, longer than 15 characters, or a header is missing
+
+            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
+
+            '
         '401':
           description: Invalid API key or secret
+        '409':
+          description: Idempotency-Key reused with a different request body, or the original request is still being processed
+        '503':
+          description: Could not verify the Idempotency-Key due to a transient failure; safe to retry
       summary: Add tag
       tags:
       - Public API – tags

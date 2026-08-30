@@ -326,6 +326,28 @@ class AutosignlyClientTest {
     }
 
     @Test
+    void aRetriedWriteRepeatsTheSameIdempotencyKey() {
+        AtomicInteger call = new AtomicInteger();
+        handler = exchange -> {
+            boolean first = call.getAndIncrement() == 0;
+            respond(exchange, first ? 503 : 200, first ? "{}" : "{\"id\":\"t-1\",\"name\":\"Umowy\"}");
+        };
+        client = AutosignlyClient.builder("api_key_test", "api_sct_test")
+                .baseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/api")
+                .maxRetries(1)
+                .build();
+
+        client.createTag("Umowy");
+
+        // A retry that invents a new key is invisible to the server's deduplication,
+        // so the write would happen twice — the header would be there and mean nothing.
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(1).headers().firstValue("Idempotency-Key"))
+                .isEqualTo(calls.get(0).headers().firstValue("Idempotency-Key"))
+                .isNotEmpty();
+    }
+
+    @Test
     void aWriteCarriesAnIdempotencyKeyAndAReadDoesNot() {
         answer(200, "{\"id\":\"t-1\",\"name\":\"Umowy\"}");
 
