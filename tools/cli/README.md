@@ -10,6 +10,9 @@ npm install -g autosignly
 
 Requires Node 20 or newer.
 
+**Stable release.** The supported line is `1.0.*`, ready for production use; the newest
+version is listed under [tags](https://github.com/16it-pl/autosignly-sdk/tags).
+
 ## Signing in
 
 ```bash

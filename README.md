@@ -3,16 +3,18 @@
 Open-source client libraries for the [Autosignly](https://autosignly.eu) API - eIDAS electronic
 signatures and document workflows, callable from your own code.
 
-> **Status: early.** The public API is stabilising and the first clients are being built here.
-> Nothing is published to package registries yet. Watch this repository for the first release.
+> **Status: stable.** The clients are released and ready for production use. The current line is
+> `1.0.*`, published to Maven Central, npm and PyPI; the newest release of each package is listed
+> under [tags](https://github.com/16it-pl/autosignly-sdk/tags).
 
 ## What lives here
 
-- **Client libraries** for the Autosignly public API. Java first, more languages to follow.
+- **Client libraries** for the Autosignly public API, in Java, Node.js and Python. Each one covers
+  the whole API and ships with usage examples in its README.
 - **A command-line tool** for local development, including forwarding webhooks to `localhost`
   without a tunnel.
-- **The API specification** the clients are generated from, so every language stays in sync.
-- **Examples** you can run.
+- **The API specification** every client is checked against by its contract tests, so no language
+  drifts away from the API.
 
 Everything in this repository is Apache-2.0 licensed. Use it, fork it, ship it.
 

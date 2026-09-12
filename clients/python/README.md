@@ -3,8 +3,6 @@
 Python client for the [Autosignly](https://autosignly.eu) API - eIDAS electronic signatures and
 document workflows.
 
-> **Not published yet.** This package is being built. Install from source for now.
-
 ## Install
 
 ```bash
@@ -12,6 +10,9 @@ pip install autosignly
 ```
 
 Requires Python 3.10 or newer.
+
+**Stable release.** The supported line is `1.0.*`, ready for production use; the newest
+version is listed under [tags](https://github.com/16it-pl/autosignly-sdk/tags).
 
 ## Quickstart
 

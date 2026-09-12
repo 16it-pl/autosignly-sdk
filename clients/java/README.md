@@ -10,11 +10,14 @@ HTTP comes from the JDK client, so the only dependency you inherit is Jackson.
 <dependency>
   <groupId>eu.autosignly</groupId>
   <artifactId>autosignly-client</artifactId>
-  <version>0.1.0</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
 Requires Java 17 or newer.
+
+**Stable release.** The supported line is `1.0.*`, ready for production use; the newest
+version is listed under [tags](https://github.com/16it-pl/autosignly-sdk/tags).
 
 ## Credentials
 
@@ -231,10 +234,11 @@ exponential backoff and jitter, honouring `Retry-After`. A rate limit asking for
 longer than a minute is reported to you instead of blocking the thread. Build
 with `.maxRetries(0)` to handle retries yourself.
 
-Writes carry an `Idempotency-Key` header. The API does not act on it yet, so a
-retried upload can still create a second document — until it does, treat a
-timed-out `uploadAndSign` as "unknown" and check the document list before
-sending again.
+Writes carry an `Idempotency-Key` header, generated once per call and kept
+across the retries of that call, and the API honours it: a retried upload returns
+the stored response instead of creating a second document. Keys are remembered
+for 24 hours, so a write you retry yourself after a timeout is safe as well when
+you send the same key with the same body.
 
 ## License
 
