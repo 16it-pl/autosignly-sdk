@@ -254,10 +254,12 @@ longer than a minute is reported to you instead of blocking. Set `maxRetries: 0`
 to handle retries yourself.
 
 Writes carry an `Idempotency-Key` header, generated once per call and kept
-across the retries of that call, and the API honours it: a retried upload returns
-the stored response instead of creating a second document. Keys are remembered
-for 24 hours, so a write you retry yourself after a timeout is safe as well when
-you send the same key with the same body.
+across the retries of that call, and the API honours it: a retry whose original
+has already finished gets the stored response back instead of creating a second
+document, and a retry that catches the original still in flight is rejected with
+`409` (a `ValidationError`) rather than duplicating the write.
+Successful responses are remembered for 24 hours. Retrying a write yourself is
+safe under the same rule — send the same key with the same body.
 
 ## License
 

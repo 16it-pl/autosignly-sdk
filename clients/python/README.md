@@ -230,6 +230,13 @@ The client does not implement a circuit breaker. It runs inside your process, on
 for, so refusing to even attempt one would be surprising - and your own infrastructure is the right
 place for that policy. Pass your own `http_client` if you want to add one.
 
+Writes carry an `Idempotency-Key` header, generated once per call and kept across the retries of
+that call, and the API honours it: a retry whose original has already finished gets the stored
+response back instead of creating a second document, and a retry that catches the original still in
+flight is rejected with `409` (a `ValidationError`) rather than duplicating the write. Successful
+responses are remembered for 24 hours. Retrying a write yourself is safe under the same rule — send
+the same key with the same body.
+
 ## Links
 
 - Website: <https://autosignly.eu>

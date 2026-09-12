@@ -892,8 +892,8 @@ paths:
       description: 'Checks whether the provided API key + secret pair is valid and whether it belongs to the given company.
 
 
-        Invalid credentials always return `200` with `valid=false` — the endpoint never returns `401` to avoid key enumeration.
-        Only missing or blank headers produce `400`.
+        Invalid credentials always return `200` with `valid=false` — the endpoint never returns `401` for a rejected key,
+        so keys cannot be enumerated. A missing or blank header produces `401`.
 
         '
       parameters:
@@ -902,14 +902,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret paired with the key
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -918,8 +916,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiKeyValidationResponseV1'
           description: Validation result
-        '400':
-          description: X-API-KEY, X-API-SECRET, or companyId header is missing or blank
+        '401':
+          description: X-API-KEY or X-API-SECRET header is missing or blank
       summary: Validate API credentials
       tags:
       - Public API – document signing
@@ -929,8 +927,8 @@ paths:
         a client is pointed at a sandbox rather than at production.
 
 
-        Invalid credentials return `200` with `valid=false` - this endpoint never answers with `401`, so keys cannot be probed.
-        Only a missing or blank header produces `400`.
+        Invalid credentials return `200` with `valid=false` - this endpoint never answers with `401` for a rejected key, so
+        keys cannot be probed. A missing or blank header produces `401`.
 
         '
       parameters:
@@ -939,14 +937,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -955,7 +951,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CredentialsResponse'
           description: Result of the lookup
-        '400':
+        '401':
           description: X-API-KEY or X-API-SECRET header is missing or blank
       summary: Describe the calling credentials
       tags:
@@ -985,7 +981,7 @@ paths:
           items:
             type: string
           type: array
-      - description: Filter by status. Repeat for multiple values, e.g. status=SIGNED&status=GENERATED
+      - description: Filter by status. Repeat for multiple values, e.g. status=SIGNED&status=GENERATED.
         in: query
         name: status
         schema:
@@ -1005,14 +1001,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1022,9 +1016,9 @@ paths:
                 $ref: '#/components/schemas/PageResponseDocumentListItemResponseV1'
           description: Document list returned successfully
         '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
+          description: '`status` is not an allowed document status. The response lists the accepted values.'
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
       summary: List documents
       tags:
       - Public API – document signing
@@ -1053,14 +1047,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1112,7 +1104,7 @@ paths:
 
             '
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '409':
           description: Idempotency-Key reused with a different request body, or the original request is still being processed
         '503':
@@ -1144,14 +1136,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1242,7 +1232,7 @@ paths:
 
             '
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '409':
           description: Idempotency-Key reused with a different request body, or the original request is still being processed
         '503':
@@ -1274,14 +1264,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1290,10 +1278,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/DocumentInfoResponse'
           description: Document info returned successfully
-        '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '403':
           description: Document does not belong to the company associated with the provided API key
       summary: Get document info
@@ -1317,14 +1303,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1336,7 +1320,7 @@ paths:
                 type: array
           description: Attachments of the document
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such document in this company and environment
       summary: List document attachments
@@ -1374,14 +1358,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1418,7 +1400,7 @@ paths:
 
             '
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such document in this company and environment
         '409':
@@ -1450,14 +1432,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '204':
@@ -1465,7 +1445,7 @@ paths:
         '400':
           description: Document is no longer editable, because it has already been sent for signing
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such document or attachment in this company and environment
       summary: Remove an attachment
@@ -1534,14 +1514,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1573,7 +1551,7 @@ paths:
 
             '
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '403':
           description: Document does not belong to the company associated with the provided API key
         '409':
@@ -1602,14 +1580,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1627,9 +1603,9 @@ paths:
                 type: array
           description: Tags the document carries after the change
         '400':
-          description: A name is longer than 15 characters, or a header is missing
+          description: A name is longer than 15 characters
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '403':
           description: Document does not belong to the caller's company/environment
         '404':
@@ -1669,7 +1645,7 @@ paths:
           items:
             type: string
           type: array
-      - description: Narrow the list to businesses or to natural persons
+      - description: Narrow the list to businesses or to natural persons.
         example: COMPANY
         in: query
         name: type
@@ -1680,14 +1656,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1697,9 +1671,9 @@ paths:
                 $ref: '#/components/schemas/PageResponsePartyResponseV1'
           description: Party list returned successfully
         '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
+          description: '`type` is not an allowed party type. The response lists the accepted values.'
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
       summary: List parties
       tags:
       - Public API – parties
@@ -1724,14 +1698,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1749,13 +1721,13 @@ paths:
         '400':
           description: 'Invalid request. Possible reasons:
 
-            - Invalid party data, a missing header, or a party with the same tax id or e-mail already exists
+            - Invalid party data, or a party with the same tax id or e-mail already exists
 
             - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
 
             '
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '409':
           description: Idempotency-Key reused with a different request body, or the original request is still being processed
         '503':
@@ -1779,22 +1751,18 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '204':
           description: Party deleted
-        '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such party in the environment of this API key
       summary: Delete party
@@ -1814,14 +1782,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1830,10 +1796,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Party'
           description: Party returned successfully
-        '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such party in the environment of this API key
       summary: Get party
@@ -1854,14 +1818,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -1877,9 +1839,9 @@ paths:
                 $ref: '#/components/schemas/Party'
           description: Party replaced
         '400':
-          description: Invalid party data or a missing header
+          description: Invalid party data
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such party in the environment of this API key
       summary: Replace party
@@ -1906,14 +1868,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1925,7 +1885,7 @@ paths:
         '400':
           description: Country is not a two-letter ISO 3166-1 alpha-2 code
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
       summary: Get the signature policy of one country
       tags:
       - Public API – signing rules
@@ -1945,14 +1905,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -1964,7 +1922,7 @@ paths:
                 type: array
           description: Countries an SMS code can be delivered to
         '401':
-          description: Invalid or missing X-API-KEY / X-API-SECRET headers
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
       summary: List countries an SMS code can be sent to
       tags:
       - Public API – signing rules
@@ -2005,14 +1963,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '200':
@@ -2021,10 +1977,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/PageResponseTagResponseV1'
           description: Tag list returned successfully
-        '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
       summary: List tags
       tags:
       - Public API – tags
@@ -2048,14 +2002,12 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       requestBody:
         content:
@@ -2073,13 +2025,13 @@ paths:
         '400':
           description: 'Invalid request. Possible reasons:
 
-            - Name is blank, longer than 15 characters, or a header is missing
+            - Name is blank or longer than 15 characters
 
             - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
 
             '
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '409':
           description: Idempotency-Key reused with a different request body, or the original request is still being processed
         '503':
@@ -2105,22 +2057,18 @@ paths:
         name: X-API-KEY
         required: true
         schema:
-          pattern: \S
           type: string
       - description: API secret for the calling company
         in: header
         name: X-API-SECRET
         required: true
         schema:
-          pattern: \S
           type: string
       responses:
         '204':
           description: Tag deleted
-        '400':
-          description: X-API-KEY or X-API-SECRET header is missing or blank
         '401':
-          description: Invalid API key or secret
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '404':
           description: No such tag in the caller's environment
       summary: Delete tag
