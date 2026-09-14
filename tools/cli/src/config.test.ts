@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { normaliseForwardTarget, parse, publicApiUrl, websocketUrl } from "./config.js";
+import { acknowledgementUrl, normaliseForwardTarget, parse, publicApiUrl, websocketUrl } from "./config.js";
 
 test("builds public API paths under the versioned prefix", () => {
   assert.equal(
@@ -37,6 +37,19 @@ test("keeps an already-websocket override untouched", () => {
   assert.equal(
     websocketUrl("http://localhost:9692/api", "ws://localhost:9192/api/apimanagement/ws"),
     "ws://localhost:9192/api/apimanagement/ws",
+  );
+});
+
+test("the acknowledgement endpoint is not part of the published API", () => {
+  // /publics/v1 is the contract integrators are given. Reporting on a delivery
+  // only the CLI could make is not one of the things they may do.
+  assert.equal(
+    acknowledgementUrl("https://app.autosignly.eu/api"),
+    "https://app.autosignly.eu/api/apimanagement/public/webhook-deliveries/acknowledged",
+  );
+  assert.equal(
+    acknowledgementUrl("https://app.autosignly.eu/api/"),
+    "https://app.autosignly.eu/api/apimanagement/public/webhook-deliveries/acknowledged",
   );
 });
 

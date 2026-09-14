@@ -4,6 +4,7 @@ import { WebSocket } from "ws";
 import {
   type Credentials,
   type ListenOptions,
+  acknowledgementUrl,
   fetchCredentials,
   normaliseForwardTarget,
   websocketUrl,
@@ -15,6 +16,14 @@ interface RelayFrame {
   signature: string;
   /** The event body verbatim, exactly as it was signed. */
   payload: string | unknown;
+  /**
+   * Single-use token to report back with, when this relay is the whole delivery.
+   *
+   * Absent for an event that also goes out over HTTP: there the server's own
+   * POST decides the outcome, and a listener merely watching it has nothing to
+   * report. Holding the token is what proves we received this frame.
+   */
+  ackToken?: string;
 }
 
 export async function listen(options: ListenOptions): Promise<void> {
@@ -48,7 +57,7 @@ export async function listen(options: ListenOptions): Promise<void> {
     },
     onConnect: () => {
       client.subscribe(destination, (message) => {
-        void forward(message, target, options.skipVerify);
+        void forward(message, target, options);
       });
       console.log(`Listening. Events will be forwarded to ${target}`);
     },
@@ -66,7 +75,7 @@ export async function listen(options: ListenOptions): Promise<void> {
   });
 }
 
-async function forward(message: IMessage, target: string, skipVerify: boolean): Promise<void> {
+async function forward(message: IMessage, target: string, options: ListenOptions): Promise<void> {
   let frame: RelayFrame;
   try {
     frame = JSON.parse(message.body) as RelayFrame;
@@ -79,7 +88,7 @@ async function forward(message: IMessage, target: string, skipVerify: boolean): 
   // formatting and the signature would no longer match at the receiver.
   const body = typeof frame.payload === "string" ? frame.payload : JSON.stringify(frame.payload);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (!skipVerify) {
+  if (!options.skipVerify) {
     headers["X-Webhook-Timestamp"] = frame.timestamp;
     headers["X-Webhook-Signature"] = frame.signature;
   }
@@ -88,8 +97,46 @@ async function forward(message: IMessage, target: string, skipVerify: boolean): 
   try {
     const response = await fetch(target, { method: "POST", headers, body });
     report(frame.eventType, response.status, Date.now() - started);
+    await acknowledge(frame, options, { delivered: response.ok, httpStatus: response.status });
   } catch (error) {
-    console.error(`${frame.eventType}  ->  could not reach ${target}: ${(error as Error).message}`);
+    const reason = (error as Error).message;
+    console.error(`${frame.eventType}  ->  could not reach ${target}: ${reason}`);
+    await acknowledge(frame, options, { delivered: false, error: reason });
+  }
+}
+
+/**
+ * Tells Autosignly what became of an event only this listener could deliver.
+ *
+ * Without it the delivery list would have to guess, and guessing means claiming
+ * a document reached a machine nobody could reach. A failure to report is
+ * printed but never thrown: the event itself was already forwarded, and the
+ * server closes anything it never hears about.
+ */
+async function acknowledge(
+  frame: RelayFrame,
+  options: ListenOptions,
+  outcome: { delivered: boolean; httpStatus?: number; error?: string },
+): Promise<void> {
+  if (!frame.ackToken) {
+    return;
+  }
+
+  try {
+    const response = await fetch(acknowledgementUrl(options.apiUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": options.apiKey,
+        "X-API-SECRET": options.apiSecret,
+      },
+      body: JSON.stringify({ ackToken: frame.ackToken, ...outcome }),
+    });
+    if (!response.ok) {
+      console.error(`Could not report the outcome of ${frame.eventType}: server answered ${response.status}`);
+    }
+  } catch (error) {
+    console.error(`Could not report the outcome of ${frame.eventType}: ${(error as Error).message}`);
   }
 }
 

@@ -20,6 +20,16 @@ export function publicApiUrl(apiUrl: string, path: string): string {
   return `${apiUrl.replace(/\/$/, "")}/publics/v1${path}`;
 }
 
+/**
+ * Where a listener reports what it did with a relayed event.
+ *
+ * Deliberately not under /publics/v1: this is the CLI telling Autosignly about
+ * a delivery only the CLI could make, not a capability an integrator has.
+ */
+export function acknowledgementUrl(apiUrl: string): string {
+  return `${apiUrl.replace(/\/$/, "")}/apimanagement/public/webhook-deliveries/acknowledged`;
+}
+
 export function websocketUrl(apiUrl: string, override?: string): string {
   if (override) {
     return override.replace(/^http/, "ws");
