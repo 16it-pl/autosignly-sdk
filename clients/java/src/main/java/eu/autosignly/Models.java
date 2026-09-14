@@ -138,7 +138,17 @@ public final class Models {
              * production, where each signer is e-mailed their link when their
              * turn comes.
              */
-            String sandboxSignUrl) {}
+            String sandboxSignUrl,
+            /**
+             * When this signer signed, or null while their signature is still
+             * outstanding.
+             *
+             * <p>Set once, when the signature is stored, and never moved
+             * afterwards. This is the only per-signer progress the document
+             * carries: the document status says whether everyone is done, not
+             * who.
+             */
+            String signedAt) {}
 
     /**
      * Where a signer stands, and the link they were given.

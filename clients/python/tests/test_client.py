@@ -176,6 +176,30 @@ def test_get_document_parses_signers():
     assert document.signers[0].signing_order == 1
 
 
+def test_get_document_reports_which_signers_have_signed():
+    # The only per-signer progress the API carries: the document status says
+    # whether everyone is done, not who.
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "doc-1",
+                "companyId": "company-1",
+                "status": "SIGNING_IN_PROGRESS",
+                "signerResponses": [
+                    {"email": "anna@example.com", "signingOrder": 1, "signedAt": "2026-05-06T09:31:14Z"},
+                    {"email": "jan@example.com", "signingOrder": 2},
+                ],
+            },
+        )
+
+    with build_client(handler) as client:
+        document = client.get_document("doc-1")
+
+    assert document.signers[0].signed_at == "2026-05-06T09:31:14Z"
+    assert document.signers[1].signed_at is None
+
+
 def test_upload_and_sign_posts_multipart_with_json_part():
     seen = {}
 

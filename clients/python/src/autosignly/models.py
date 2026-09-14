@@ -285,6 +285,13 @@ class SignerDetails:
     this is the only way to reach their signing page. Absent in production,
     where each signer is e-mailed their link when their turn comes.
     """
+    signed_at: str | None = None
+    """When this signer signed, or None while their signature is outstanding.
+
+    Set once, when the signature is stored, and never moved afterwards. This is
+    the only per-signer progress the document carries: the document status says
+    whether everyone is done, not who.
+    """
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "SignerDetails":
@@ -299,6 +306,7 @@ class SignerDetails:
             signature_verification_method=payload.get("signatureVerificationMethod"),
             signing_order=payload.get("signingOrder"),
             sandbox_sign_url=payload.get("sandboxSignUrl"),
+            signed_at=payload.get("signedAt"),
         )
 
 

@@ -73,6 +73,11 @@ if (document.status === "SIGNED") {
 }
 ```
 
+Each entry in `document.signers` carries `signedAt`, set when that person
+signed and absent while their signature is outstanding. It is the only
+per-signer progress the API reports: `document.status` says whether everyone is
+done, not who.
+
 `fileUrl` on the document is a short-lived link — fetch the document again for a
 fresh one rather than storing it. `downloadDocument` does that for you.
 
@@ -231,6 +236,19 @@ test.
 During a key rotation Autosignly signs with both the new and the previous key
 and sends both signatures in one header. `isValid` accepts either, so you can
 swap your stored secret without dropping deliveries.
+
+### What a delivery carries
+
+Two event types, both naming the document in `documentId`:
+
+| `eventType` | when | also carries |
+|---|---|---|
+| `DOCUMENT_SIGNED` | one signer has signed | `signerId`, and `email` of the person who signed |
+| `DOCUMENT_ALL_SIGNATURES_DONE` | the document is finished, closing seal included | nothing else |
+
+`DOCUMENT_ALL_SIGNATURES_DONE` arrives after finalization, not when the last
+signature lands, so the file behind `fileUrl` is the final one by the time you
+act on it.
 
 ## Errors
 

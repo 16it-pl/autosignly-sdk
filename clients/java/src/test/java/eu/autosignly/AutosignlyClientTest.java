@@ -165,6 +165,21 @@ class AutosignlyClientTest {
     }
 
     @Test
+    void getDocumentReportsWhichSignersHaveSigned() {
+        // The only per-signer progress the API carries: the document status says
+        // whether everyone is done, not who.
+        answer(200, """
+                {"id":"d-1","status":"SIGNING_IN_PROGRESS","signerResponses":[
+                 {"email":"anna@example.com","signingOrder":1,"signedAt":"2026-05-06T09:31:14Z"},
+                 {"email":"jan@example.com","signingOrder":2}]}""");
+
+        Document document = client.getDocument("d-1");
+
+        assertThat(document.signers().get(0).signedAt()).isEqualTo("2026-05-06T09:31:14Z");
+        assertThat(document.signers().get(1).signedAt()).isNull();
+    }
+
+    @Test
     void downloadDocumentResolvesAFreshLinkAndFetchesTheBytes() {
         handler = exchange -> {
             if (exchange.getRequestURI().getPath().endsWith("/documents/d-1")) {

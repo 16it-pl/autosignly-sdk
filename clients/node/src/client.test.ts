@@ -151,6 +151,26 @@ test("getDocument parses signers and the file link", async () => {
   assert.equal(document.signers[0].signingOrder, 1);
 });
 
+test("getDocument reports which signers have already signed", async () => {
+  // The only per-signer progress the API carries: the document status says
+  // whether everyone is done, not who.
+  const { client } = buildClient(() =>
+    json({
+      id: "d-1",
+      status: "SIGNING_IN_PROGRESS",
+      signerResponses: [
+        { email: "anna@example.com", signingOrder: 1, signedAt: "2026-05-06T09:31:14Z" },
+        { email: "jan@example.com", signingOrder: 2 },
+      ],
+    }),
+  );
+
+  const document = await client.getDocument("d-1");
+
+  assert.equal(document.signers[0].signedAt, "2026-05-06T09:31:14Z");
+  assert.equal(document.signers[1].signedAt, undefined);
+});
+
 test("sendForSigning returns the signing link of the first signer", async () => {
   // The document detail and the signing result carry different signer shapes:
   // signerResponses describe the people, signers describe where each one stands.

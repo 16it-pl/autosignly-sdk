@@ -11,4 +11,4 @@
  * Kept in step with package.json by `scripts/sync-version.mjs`, which runs on
  * `prepublishOnly` and is checked in CI.
  */
-export const VERSION: string = "1.0.1-dev.0";
+export const VERSION: string = "1.0.2-dev.0";

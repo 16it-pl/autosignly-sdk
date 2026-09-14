@@ -50,6 +50,10 @@ for summary in client.iter_documents(status="SIGNED"):
     print(summary.id, summary.name)
 ```
 
+Each signer carries `signed_at`, set when that person signed and `None` while
+their signature is outstanding. It is the only per-signer progress the API
+reports: `document.status` says whether everyone is done, not who.
+
 Both listing calls take `tag_id` as well. Several tags narrow the result — a document has to
 carry all of them — and a tag that does not exist gives an empty page rather than an error:
 
@@ -202,6 +206,19 @@ of them matches, so rotation needs no change on your side.
 
 `verify` raises `InvalidSignatureError` on a mismatch; `webhooks.is_valid(...)` returns a boolean
 instead.
+
+### What a delivery carries
+
+Two event types, both naming the document in `documentId`:
+
+| `eventType` | when | also carries |
+|---|---|---|
+| `DOCUMENT_SIGNED` | one signer has signed | `signerId`, and `email` of the person who signed |
+| `DOCUMENT_ALL_SIGNATURES_DONE` | the document is finished, closing seal included | nothing else |
+
+`DOCUMENT_ALL_SIGNATURES_DONE` arrives after finalization, not when the last
+signature lands, so the file behind `fileUrl` is the final one by the time you
+act on it.
 
 ## Errors
 

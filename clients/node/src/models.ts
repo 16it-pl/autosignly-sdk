@@ -158,6 +158,14 @@ export interface SignerDetails {
    * comes. Populated for the signer who is currently awaiting signature.
    */
   sandboxSignUrl?: string;
+  /**
+   * When this signer signed, or absent while their signature is outstanding.
+   *
+   * Set once, when the signature is stored, and never moved afterwards. This is
+   * the only per-signer progress the document carries: the document status tells
+   * you whether everyone is done, not who.
+   */
+  signedAt?: string;
 }
 
 /**
@@ -343,6 +351,7 @@ export function toSignerDetails(payload: Json): SignerDetails {
     signingOrder:
       typeof payload.signingOrder === "number" ? payload.signingOrder : undefined,
     sandboxSignUrl: str(payload.sandboxSignUrl),
+    signedAt: str(payload.signedAt),
   };
 }
 

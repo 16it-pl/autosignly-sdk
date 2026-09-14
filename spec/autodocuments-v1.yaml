@@ -692,6 +692,13 @@ components:
           $ref: '#/components/schemas/VerificationMethod'
           description: Verification method used to confirm the signer's identity before an AES signature. Null for SES.
           type: string
+        signedAt:
+          $ref: '#/components/schemas/Instant'
+          description: When this signer signed, or null while their signature is still outstanding. Set once, when the signature
+            is stored, and never moved afterwards.
+          examples:
+          - 2024-05-06 09:31:14+00:00
+          type: string
         signingOrder:
           description: Position of this signer in the sequential signing order. The signer with order 1 signs first.
           examples:
