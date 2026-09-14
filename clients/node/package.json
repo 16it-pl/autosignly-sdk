@@ -1,6 +1,6 @@
 {
   "name": "@16it/autosignly",
-  "version": "1.0.1-dev.0",
+  "version": "1.0.0-dev.0",
   "description": "Node.js client for the Autosignly API — send documents for eIDAS signature and verify webhook deliveries.",
   "keywords": [
     "autosignly",
@@ -27,6 +27,7 @@
   "files": [
     "dist",
     "src",
+    "scripts",
     "README.md"
   ],
   "engines": {
@@ -42,7 +43,9 @@
   "scripts": {
     "build": "tsc",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/*.test.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run sync-version && npm run build",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

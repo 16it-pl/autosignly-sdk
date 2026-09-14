@@ -159,7 +159,7 @@ test("sendForSigning returns the signing link of the first signer", async () => 
       documentId: "d-1",
       status: "WAITING_FOR_SIGNATURE",
       signers: [
-        { email: "anna@example.com", status: "AWAITING_SIGNATURE", signUrl: "https://sign.test/a", expiresAt: "2026-09-01T10:00:00Z" },
+        { email: "anna@example.com", status: "AWAITING_SIGNATURE", sandboxSignUrl: "https://sign.test/a", expiresAt: "2026-09-01T10:00:00Z" },
         { email: "jan@example.com", status: "SENT" },
       ],
     }),
@@ -169,9 +169,9 @@ test("sendForSigning returns the signing link of the first signer", async () => 
     signers: [{ firstName: "Anna", lastName: "Nowak", email: "anna@example.com", country: "PL" }],
   });
 
-  assert.equal(result.signers[0].signUrl, "https://sign.test/a");
+  assert.equal(result.signers[0].sandboxSignUrl, "https://sign.test/a");
   assert.equal(result.signers[0].expiresAt, "2026-09-01T10:00:00Z");
-  assert.equal(result.signers[1].signUrl, undefined);
+  assert.equal(result.signers[1].sandboxSignUrl, undefined);
 });
 
 test("downloadDocument resolves a fresh link and fetches the bytes", async () => {
@@ -193,9 +193,22 @@ test("downloadDocument reports a document with no file", async () => {
 });
 
 test("uploadAndSign posts the pdf and the request as multipart", async () => {
-  const { client, calls } = buildClient(() => json({ documentId: "d-9" }));
+  const { client, calls } = buildClient(() =>
+    json({
+      documentId: "d-9",
+      status: "WAITING_FOR_SIGNATURE",
+      signers: [
+        {
+          email: "a@example.com",
+          status: "AWAITING_SIGNATURE",
+          sandboxSignUrl: "https://sign.example/d-9",
+          expiresAt: "2026-09-15T10:00:00Z",
+        },
+      ],
+    }),
+  );
 
-  const documentId = await client.uploadAndSign({
+  const result = await client.uploadAndSign({
     pdf: new Uint8Array([37, 80, 68, 70]),
     documentName: "Umowa",
     fileName: "umowa.pdf",
@@ -204,7 +217,8 @@ test("uploadAndSign posts the pdf and the request as multipart", async () => {
     signers: [{ firstName: "Anna", lastName: "Nowak", email: "a@example.com", country: "PL", order: 1 }],
   });
 
-  assert.equal(documentId, "d-9");
+  assert.equal(result.documentId, "d-9");
+  assert.equal(result.signers[0].sandboxSignUrl, "https://sign.example/d-9");
   const form = calls[0].body as FormData;
   assert.ok(form instanceof FormData);
   const request = JSON.parse(await (form.get("request") as Blob).text());
@@ -649,3 +663,20 @@ test("a subarray of a larger buffer uploads only its own window", async () => {
   assert.deepEqual(Buffer.from(sent), Buffer.from(view));
 });
 
+
+test("getDocument exposes the sandbox signing link of each signer", async () => {
+  const { client } = buildClient(() =>
+    json({
+      id: "d-10",
+      signerResponses: [
+        { email: "a@example.com", signingOrder: 1 },
+        { email: "b@example.com", signingOrder: 2, sandboxSignUrl: "https://sign.example/b" },
+      ],
+    }),
+  );
+
+  const document = await client.getDocument("d-10");
+
+  assert.equal(document.signers[0].sandboxSignUrl, undefined);
+  assert.equal(document.signers[1].sandboxSignUrl, "https://sign.example/b");
+});

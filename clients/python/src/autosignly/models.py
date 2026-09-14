@@ -245,7 +245,14 @@ class SignerStatus:
 
     email: str
     status: str | None = None
-    sign_url: str | None = None
+    sandbox_sign_url: str | None = None
+    """Sandbox only: this signer's signing page.
+
+    No production link is returned: it authorises signing on its own, so the API
+    caller must never hold one. In production each signer is e-mailed their own.
+    A sandbox e-mails nothing and its signatures carry no legal weight, so the
+    link is handed over to make the flow testable.
+    """
     expires_at: str | None = None
 
     @classmethod
@@ -253,7 +260,7 @@ class SignerStatus:
         return cls(
             email=payload.get("email", ""),
             status=payload.get("status"),
-            sign_url=payload.get("signUrl"),
+            sandbox_sign_url=payload.get("sandboxSignUrl"),
             expires_at=payload.get("expiresAt"),
         )
 
@@ -271,6 +278,13 @@ class SignerDetails:
     signature_type: str | None = None
     signature_verification_method: str | None = None
     signing_order: int | None = None
+    sandbox_sign_url: str | None = None
+    """Sandbox only: this signer's signing page.
+
+    A sandbox sends no e-mail and no SMS, so for every signer after the first
+    this is the only way to reach their signing page. Absent in production,
+    where each signer is e-mailed their link when their turn comes.
+    """
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "SignerDetails":
@@ -284,6 +298,7 @@ class SignerDetails:
             signature_type=payload.get("signatureType"),
             signature_verification_method=payload.get("signatureVerificationMethod"),
             signing_order=payload.get("signingOrder"),
+            sandbox_sign_url=payload.get("sandboxSignUrl"),
         )
 
 

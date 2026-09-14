@@ -700,8 +700,10 @@ components:
           type: integer
       type: object
     SignerStatusResponse:
-      description: Status and signing link for a single signer. Only the first signer in signing order has signUrl and expiresAt
-        populated. Remaining signers receive their link by email when their turn comes.
+      description: 'Where a signer stands. No production signing link is ever returned here: the link authorises signing on
+        its own, so handing it to the API caller would let them sign in the signer''s name. In production every signer is
+        emailed their own link when their turn comes. In sandbox nothing is emailed, so the signer whose turn it is carries
+        sandboxSignUrl.'
       properties:
         email:
           description: Signer's email address.
@@ -710,14 +712,14 @@ components:
           type: string
         expiresAt:
           $ref: '#/components/schemas/Instant'
-          description: Expiry timestamp of the signing link. Present only when signUrl is not null. The link is valid for
-            48 hours from the moment the document was sent.
+          description: Expiry timestamp of sandboxSignUrl. Null whenever that is null.
           examples:
           - 2026-05-11 10:00:00+00:00
           type: string
-        signUrl:
-          description: Direct signing link for this signer. Present only for the first signer (AWAITING_SIGNATURE); null for
-            all others (PENDING). Link is valid until expiresAt.
+        sandboxSignUrl:
+          description: Sandbox only. Signing page of the signer whose turn it is. A sandbox sends no email and no SMS and
+            holds no legally meaningful signatures, so the link is handed over to make the flow testable. Always null in production,
+            and null for every signer who is not currently awaiting signature.
           examples:
           - https://sign.example.com/s/abc123?hmac=xyz&expires=1234567890
           type: string
@@ -836,16 +838,6 @@ components:
       required:
       - documentName
       - signers
-      type: object
-    UploadPdfAndSignResponse:
-      description: Result of uploading a PDF and sending it for signing. Signing links are emailed in production; in sandbox
-        they are not sent — use GET document info for sandboxSignUrl.
-      properties:
-        documentId:
-          description: ID of the created document.
-          examples:
-          - 03bef6df-faca-4aee-9836-80caeeaf4418
-          type: string
       type: object
     UploadPdfRequest:
       description: What to call the uploaded document. Signers and signature settings are given later, when the document is
@@ -1116,8 +1108,12 @@ paths:
     post:
       description: 'Uploads a PDF file and immediately sends it to the provided signers.
 
-        Signing links are emailed in production. In sandbox they are not emailed — poll GET document info for `sandboxSignUrl`
-        on the current unsigned signer. Only the `documentId` is returned so the caller can track the document status later.
+        Answers with the same body as `POST /documents/{documentId}/signings`: the document id, the document status, and every
+        signer.
+
+        No production signing link is returned. The link authorises signing on its own, so every signer is emailed their own
+        when their turn comes. In sandbox nothing is emailed, so the signer whose turn it is carries `sandboxSignUrl`; for
+        the later ones poll GET document info as each turn comes.
 
         '
       parameters:
@@ -1209,7 +1205,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UploadPdfAndSignResponse'
+                $ref: '#/components/schemas/SendForSigningResponse'
           description: Document uploaded and sent for signing
         '400':
           description: 'Invalid request. Possible reasons:
@@ -1453,7 +1449,7 @@ paths:
       - Public API – document signing
   /api/publics/v1/documents/{documentId}/signings:
     post:
-      description: 'Sends an existing document to signers and returns their signing links.
+      description: 'Sends an existing document to signers.
 
 
         **The document must be in one of two statuses**.  Any other status results in a 400 error.
@@ -1473,9 +1469,9 @@ paths:
         - Providing any signers when the document is in this status returns 400.
 
 
-        **Response signers:** only the first signer (by `order`) receives a `signUrl` and `expiresAt` immediately; remaining
-        signers receive their link by email when their turn comes. In sandbox, remaining signers: poll GET document info for
-        `sandboxSignUrl`. Link valid 48 h from sending.
+        **Response signers:** no production signing link is returned. The link authorises signing on its own, so every signer
+        is emailed their own when their turn comes. In sandbox nothing is emailed, so the signer whose turn it is carries
+        `sandboxSignUrl`; for the later ones poll GET document info as each turn comes. Links are valid 48 h from sending.
 
         '
       parameters:

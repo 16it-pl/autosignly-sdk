@@ -347,10 +347,17 @@ public final class AutosignlyClient {
     /**
      * Upload a PDF and send it for signature in one call.
      *
-     * <p>Returns the identifier of the created document. Signing links are
-     * e-mailed to the signers directly.
+     * <p>Returns the same {@link SigningRequestResult} as
+     * {@link #sendForSigning}: the document id, the document status, and every
+     * signer. The first signer by {@code order} carries a {@code signUrl} and
+     * its expiry; the rest are pending until their turn comes.
+     *
+     * <p>That link is what gets you into a sandbox, which sends no e-mail and
+     * no SMS. For signers after the first, read {@code sandboxSignUrl} from the
+     * {@link Models.SignerDetails} returned by {@link #getDocument}.
      */
-    public String uploadAndSign(byte[] pdf, String documentName, String fileName, SigningOptions options) {
+    public SigningRequestResult uploadAndSign(byte[] pdf, String documentName, String fileName,
+            SigningOptions options) {
         ObjectNode request = options.toJson(mapper);
         request.put("documentName", documentName);
 
@@ -365,7 +372,7 @@ public final class AutosignlyClient {
 
         JsonNode payload = request("POST", "/documents/signings", null,
                 new Multipart(boundary, multipart));
-        return payload == null ? "" : payload.path("documentId").asText("");
+        return read(payload, SigningRequestResult.class);
     }
 
     // -- parties -------------------------------------------------------------

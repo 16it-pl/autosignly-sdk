@@ -300,11 +300,17 @@ class AutosignlyClient:
         initiator_email: str | None = None,
         initiator_locale: str | None = None,
         file_name: str = "document.pdf",
-    ) -> str:
+    ) -> SigningRequestResult:
         """Upload a PDF and send it for signature in one call.
 
-        Returns the identifier of the created document. Signing links are
-        e-mailed to the signers directly.
+        Returns the same result as :meth:`send_for_signing`: the document id,
+        the document status, and every signer. The first signer by ``order``
+        carries a ``sign_url`` and its expiry; the rest are pending until their
+        turn comes.
+
+        That link is what gets you into a sandbox, which sends no e-mail and no
+        SMS. For signers after the first, read ``sandbox_sign_url`` from
+        :meth:`get_document`.
         """
         request: dict[str, Any] = {
             "documentName": document_name,
@@ -327,7 +333,7 @@ class AutosignlyClient:
             "request": (None, json.dumps(request), "application/json"),
         }
         payload = self._request("POST", "/documents/signings", files=files)
-        return payload.get("documentId", "")
+        return SigningRequestResult.from_payload(payload)
 
     # -- parties -------------------------------------------------------------
 

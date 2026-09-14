@@ -129,7 +129,16 @@ public final class Models {
             String signatureType,
             String signatureVerificationMethod,
             /** Position in the signing order, starting at 1. */
-            Integer signingOrder) {}
+            Integer signingOrder,
+            /**
+             * Sandbox only: this signer's signing page.
+             *
+             * <p>A sandbox sends no e-mail and no SMS, so for every signer after
+             * the first this is the only way to reach their signing page. Null in
+             * production, where each signer is e-mailed their link when their
+             * turn comes.
+             */
+            String sandboxSignUrl) {}
 
     /**
      * Where a signer stands, and the link they were given.
@@ -138,7 +147,20 @@ public final class Models {
      * person gets theirs once the previous one has signed.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SignerStatus(String email, String status, String signUrl, String expiresAt) {}
+    public record SignerStatus(
+            String email,
+            String status,
+            /**
+             * Sandbox only: this signer's signing page.
+             *
+             * <p>No production link is returned: it authorises signing on its own,
+             * so the API caller must never hold one. In production each signer is
+             * e-mailed their own. A sandbox e-mails nothing and its signatures
+             * carry no legal weight, so the link is handed over to make the flow
+             * testable.
+             */
+            String sandboxSignUrl,
+            String expiresAt) {}
 
     /**
      * Full details of a document, including its signers and a link to its file.

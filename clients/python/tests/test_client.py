@@ -188,14 +188,14 @@ def test_upload_and_sign_posts_multipart_with_json_part():
     signer = Signer(first_name="Anna", last_name="Nowak", email="anna@example.com", country="PL")
 
     with build_client(handler) as client:
-        document_id = client.upload_and_sign(
+        result = client.upload_and_sign(
             pdf=b"%PDF-1.4 fake",
             document_name="Contract",
             signers=[signer],
             signature_type="SES",
         )
 
-    assert document_id == "doc-9"
+    assert result.document_id == "doc-9"
     assert seen["content_type"].startswith("multipart/form-data")
     assert b"application/pdf" in seen["body"]
     assert b"application/json" in seen["body"]
@@ -717,3 +717,30 @@ def test_delete_party_returns_nothing():
 
     assert seen["method"] == "DELETE"
     assert seen["path"] == "/api/publics/v1/parties/party-1"
+
+
+def test_get_document_exposes_sandbox_sign_url_per_signer():
+    """A sandbox e-mails nothing, so each signer carries their own link."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "doc-10",
+                "signerResponses": [
+                    {"email": "a@example.com", "signingOrder": 1},
+                    {
+                        "email": "b@example.com",
+                        "signingOrder": 2,
+                        "sandboxSignUrl": "https://sign.example/b",
+                    },
+                ],
+            },
+        )
+
+    with build_client(handler) as client:
+        document = client.get_document("doc-10")
+
+    assert document.signers[0].sandbox_sign_url is None
+    assert document.signers[1].sandbox_sign_url == "https://sign.example/b"
+

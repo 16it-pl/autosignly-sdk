@@ -149,6 +149,15 @@ export interface SignerDetails {
   signatureVerificationMethod?: string;
   /** Position in the signing order, starting at 1. */
   signingOrder?: number;
+  /**
+   * Sandbox only: this signer's signing page.
+   *
+   * A sandbox sends no e-mail and no SMS, so for every signer after the first
+   * this is the only way to reach their signing page. Always absent in
+   * production, where each signer is e-mailed their own link when their turn
+   * comes. Populated for the signer who is currently awaiting signature.
+   */
+  sandboxSignUrl?: string;
 }
 
 /**
@@ -160,8 +169,16 @@ export interface SignerDetails {
 export interface SignerStatus {
   email?: string;
   status?: string;
-  signUrl?: string;
-  /** When `signUrl` stops working. Absent when there is no link. */
+  /**
+   * Sandbox only: this signer's signing page.
+   *
+   * No production link is returned: it authorises signing on its own, so the
+   * API caller must never hold one. In production each signer is e-mailed
+   * their own. A sandbox e-mails nothing and its signatures carry no legal
+   * weight, so the link is handed over to make the flow testable.
+   */
+  sandboxSignUrl?: string;
+  /** When `sandboxSignUrl` stops working. Absent when there is no link. */
   expiresAt?: string;
 }
 
@@ -325,6 +342,7 @@ export function toSignerDetails(payload: Json): SignerDetails {
     signatureVerificationMethod: str(payload.signatureVerificationMethod),
     signingOrder:
       typeof payload.signingOrder === "number" ? payload.signingOrder : undefined,
+    sandboxSignUrl: str(payload.sandboxSignUrl),
   };
 }
 
@@ -332,7 +350,7 @@ export function toSignerStatus(payload: Json): SignerStatus {
   return {
     email: str(payload.email),
     status: str(payload.status),
-    signUrl: str(payload.signUrl),
+    sandboxSignUrl: str(payload.sandboxSignUrl),
     expiresAt: str(payload.expiresAt),
   };
 }

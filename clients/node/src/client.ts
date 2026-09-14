@@ -235,9 +235,13 @@ export class AutosignlyClient {
    */
   async uploadPdf(options: { pdf: Uint8Array; documentName: string; fileName?: string }): Promise<string> {
     const form = new FormData();
+    // new Uint8Array(...) rather than the value itself: a Buffer is a
+    // Uint8Array<ArrayBufferLike>, and since SharedArrayBuffer joined
+    // ArrayBufferLike the DOM lib no longer accepts that as a BlobPart. This
+    // copy compiles under both our own config and a consumer's stricter one.
     form.append(
       "file",
-      new Blob([options.pdf], { type: "application/pdf" }),
+      new Blob([new Uint8Array(options.pdf)], { type: "application/pdf" }),
       options.fileName ?? "document.pdf",
     );
     form.append(
@@ -273,7 +277,7 @@ export class AutosignlyClient {
     const form = new FormData();
     form.append(
       "file",
-      new Blob([options.content], { type: contentType(options.fileName) }),
+      new Blob([new Uint8Array(options.content)], { type: contentType(options.fileName) }),
       options.fileName,
     );
 
@@ -324,23 +328,29 @@ export class AutosignlyClient {
   /**
    * Upload a PDF and send it for signature in one call.
    *
-   * Returns the identifier of the created document. Signing links are e-mailed
-   * to the signers directly.
+   * Returns the same {@link SigningRequestResult} as {@link sendForSigning}:
+   * the document id, the document status, and every signer. The first signer
+   * by `order` carries a `signUrl` and its expiry; the rest are pending until
+   * their turn comes.
+   *
+   * That link is what gets you into a sandbox, which sends no e-mail and no
+   * SMS. For signers after the first, read `sandboxSignUrl` from
+   * {@link getDocument} as each one's turn comes.
    */
-  async uploadAndSign(options: UploadAndSignOptions): Promise<string> {
+  async uploadAndSign(options: UploadAndSignOptions): Promise<SigningRequestResult> {
     const request = buildSigningRequest(options);
     request.documentName = options.documentName;
 
     const form = new FormData();
     form.append(
       "file",
-      new Blob([options.pdf], { type: "application/pdf" }),
+      new Blob([new Uint8Array(options.pdf)], { type: "application/pdf" }),
       options.fileName ?? "document.pdf",
     );
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
 
     const payload = await this.#request<Json>("POST", "/documents/signings", { form });
-    return String(payload?.documentId ?? "");
+    return toSigningRequestResult(payload ?? {});
   }
 
   // -- tags ----------------------------------------------------------------

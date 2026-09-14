@@ -195,10 +195,25 @@ class AutosignlyClientTest {
     }
 
     @Test
-    void uploadAndSignPostsThePdfAndTheRequestAsMultipart() {
-        answer(200, "{\"documentId\":\"d-9\"}");
+    void getDocumentExposesTheSandboxSigningLinkOfEachSigner() {
+        answer(200, "{\"id\":\"d-10\",\"signerResponses\":["
+                + "{\"email\":\"a@example.com\",\"signingOrder\":1},"
+                + "{\"email\":\"b@example.com\",\"signingOrder\":2,"
+                + "\"sandboxSignUrl\":\"https://sign.example/b\"}]}");
 
-        String documentId = client.uploadAndSign(
+        Models.Document document = client.getDocument("d-10");
+
+        assertThat(document.signers().get(0).sandboxSignUrl()).isNull();
+        assertThat(document.signers().get(1).sandboxSignUrl())
+                .isEqualTo("https://sign.example/b");
+    }
+
+    @Test
+    void uploadAndSignPostsThePdfAndTheRequestAsMultipart() {
+        answer(200, "{\"documentId\":\"d-9\",\"signers\":[{\"email\":\"a@example.com\","
+                + "\"sandboxSignUrl\":\"https://sign.example/d-9\"}]}");
+
+        Models.SigningRequestResult result = client.uploadAndSign(
                 new byte[] {37, 80, 68, 70},
                 "Umowa",
                 "umowa.pdf",
@@ -206,7 +221,8 @@ class AutosignlyClientTest {
                         .of(List.of(Signer.of("Anna", "Nowak", "a@example.com", "PL").withOrder(1)))
                         .withSignature(Constants.SignatureType.SES, Constants.SignatureMode.SIGNATURES_CARD));
 
-        assertThat(documentId).isEqualTo("d-9");
+        assertThat(result.documentId()).isEqualTo("d-9");
+        assertThat(result.signers().get(0).sandboxSignUrl()).isEqualTo("https://sign.example/d-9");
         Recorded call = calls.get(0);
         assertThat(call.headers().firstValue("content-type")).hasValueSatisfying(
                 type -> assertThat(type).startsWith("multipart/form-data; boundary=autosignly-"));

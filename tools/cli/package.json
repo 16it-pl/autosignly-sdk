@@ -1,6 +1,6 @@
 {
   "name": "autosignly",
-  "version": "1.0.1-dev.0",
+  "version": "1.0.0-dev.0",
   "description": "Command line tool for Autosignly - forward webhooks to localhost while you develop",
   "license": "Apache-2.0",
   "type": "module",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://autosignly.eu",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/index.js",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/*.test.js",
     "prepublishOnly": "npm run build"
   },
