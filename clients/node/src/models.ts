@@ -70,6 +70,26 @@ export const SigningStatus = {
   REJECTED: "REJECTED",
 } as const;
 
+export const CancellationReason = {
+  REJECTED_BY_SIGNER: "REJECTED_BY_SIGNER",
+  EXPIRED: "EXPIRED",
+  CANCELLED_BY_SENDER: "CANCELLED_BY_SENDER",
+} as const;
+
+/**
+ * Events Autosignly can POST to a webhook URL.
+ *
+ * The HTTP body is a JSON object with `eventId`, `application`, `companyId`,
+ * `eventType`, `payload` and `companyApiId` (the environment id). Verify the
+ * signature of the raw body before parsing it — see `webhooks`.
+ */
+export const WebhookEventType = {
+  DOCUMENT_SIGNED: "DOCUMENT_SIGNED",
+  DOCUMENT_ALL_SIGNATURES_DONE: "DOCUMENT_ALL_SIGNATURES_DONE",
+  DOCUMENT_CANCELLED: "DOCUMENT_CANCELLED",
+  DOCUMENT_RESTORED: "DOCUMENT_RESTORED",
+} as const;
+
 /** A person asked to sign a document. */
 export interface Signer {
   firstName: string;
@@ -281,6 +301,64 @@ export interface SigningRequestResult {
   signers: SignerStatus[];
 }
 
+export interface DocumentSignedPayload {
+  documentId: string;
+  signerId?: string;
+  email?: string;
+}
+
+export interface DocumentAllSignaturesDonePayload {
+  documentId: string;
+}
+
+export interface DocumentCancelledPayload {
+  documentId: string;
+  cancellationReason?: string;
+  signerId?: string;
+  cancelledAt?: string;
+}
+
+export interface DocumentRestoredPayload {
+  documentId: string;
+  restoredAt?: string;
+}
+
+export interface DocumentSignedWebhook {
+  eventId: string;
+  application?: string;
+  companyId?: string;
+  eventType?: string;
+  payload?: DocumentSignedPayload;
+  companyApiId?: string;
+}
+
+export interface DocumentAllSignaturesDoneWebhook {
+  eventId: string;
+  application?: string;
+  companyId?: string;
+  eventType?: string;
+  payload?: DocumentAllSignaturesDonePayload;
+  companyApiId?: string;
+}
+
+export interface DocumentCancelledWebhook {
+  eventId: string;
+  application?: string;
+  companyId?: string;
+  eventType?: string;
+  payload?: DocumentCancelledPayload;
+  companyApiId?: string;
+}
+
+export interface DocumentRestoredWebhook {
+  eventId: string;
+  application?: string;
+  companyId?: string;
+  eventType?: string;
+  payload?: DocumentRestoredPayload;
+  companyApiId?: string;
+}
+
 type Json = Record<string, unknown>;
 
 const str = (value: unknown): string | undefined =>
@@ -442,6 +520,72 @@ export function toSigningRequestResult(payload: Json): SigningRequestResult {
     status: str(payload.status),
     signers: list(payload.signers).map(toSignerStatus),
   };
+}
+
+export function toDocumentSignedPayload(payload: Json): DocumentSignedPayload {
+  return {
+    documentId: String(payload.documentId ?? ""),
+    signerId: str(payload.signerId),
+    email: str(payload.email),
+  };
+}
+
+export function toDocumentAllSignaturesDonePayload(payload: Json): DocumentAllSignaturesDonePayload {
+  return { documentId: String(payload.documentId ?? "") };
+}
+
+export function toDocumentCancelledPayload(payload: Json): DocumentCancelledPayload {
+  return {
+    documentId: String(payload.documentId ?? ""),
+    cancellationReason: str(payload.cancellationReason),
+    signerId: str(payload.signerId),
+    cancelledAt: str(payload.cancelledAt),
+  };
+}
+
+export function toDocumentRestoredPayload(payload: Json): DocumentRestoredPayload {
+  return {
+    documentId: String(payload.documentId ?? ""),
+    restoredAt: str(payload.restoredAt),
+  };
+}
+
+function toWebhookEnvelope<T>(
+  payload: Json,
+  inner: (body: Json) => T,
+): {
+  eventId: string;
+  application?: string;
+  companyId?: string;
+  eventType?: string;
+  payload?: T;
+  companyApiId?: string;
+} {
+  const nested = payload.payload;
+  return {
+    eventId: String(payload.eventId ?? ""),
+    application: str(payload.application),
+    companyId: str(payload.companyId),
+    eventType: str(payload.eventType),
+    payload: nested && typeof nested === "object" ? inner(nested as Json) : undefined,
+    companyApiId: str(payload.companyApiId),
+  };
+}
+
+export function toDocumentSignedWebhook(payload: Json): DocumentSignedWebhook {
+  return toWebhookEnvelope(payload, toDocumentSignedPayload);
+}
+
+export function toDocumentAllSignaturesDoneWebhook(payload: Json): DocumentAllSignaturesDoneWebhook {
+  return toWebhookEnvelope(payload, toDocumentAllSignaturesDonePayload);
+}
+
+export function toDocumentCancelledWebhook(payload: Json): DocumentCancelledWebhook {
+  return toWebhookEnvelope(payload, toDocumentCancelledPayload);
+}
+
+export function toDocumentRestoredWebhook(payload: Json): DocumentRestoredWebhook {
+  return toWebhookEnvelope(payload, toDocumentRestoredPayload);
 }
 
 export function toPage<T>(payload: Json | null, factory: (item: Json) => T): Page<T> {

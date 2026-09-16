@@ -64,6 +64,28 @@ class DocumentStatus:
     CANCELLED = "CANCELLED"
 
 
+class CancellationReason:
+    """Why signing ended when the document is cancelled."""
+
+    REJECTED_BY_SIGNER = "REJECTED_BY_SIGNER"
+    EXPIRED = "EXPIRED"
+    CANCELLED_BY_SENDER = "CANCELLED_BY_SENDER"
+
+
+class WebhookEventType:
+    """Events Autosignly can POST to a webhook URL.
+
+    The HTTP body is a JSON object with ``eventId``, ``application``, ``companyId``,
+    ``eventType``, ``payload`` and ``companyApiId`` (the environment id). Verify the
+    signature of the raw body before parsing it — see ``autosignly.webhooks``.
+    """
+
+    DOCUMENT_SIGNED = "DOCUMENT_SIGNED"
+    DOCUMENT_ALL_SIGNATURES_DONE = "DOCUMENT_ALL_SIGNATURES_DONE"
+    DOCUMENT_CANCELLED = "DOCUMENT_CANCELLED"
+    DOCUMENT_RESTORED = "DOCUMENT_RESTORED"
+
+
 class AttachmentFormat:
     """Format of an attached file, detected from its content."""
 
@@ -475,6 +497,164 @@ class SigningRequestResult:
             document_id=payload.get("documentId", ""),
             status=payload.get("status"),
             signers=[SignerStatus.from_payload(s) for s in payload.get("signers") or []],
+        )
+
+
+@dataclass(slots=True)
+class DocumentSignedPayload:
+    """A signer completed their signature on the document."""
+
+    document_id: str
+    signer_id: str | None = None
+    email: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentSignedPayload":
+        return cls(
+            document_id=payload.get("documentId") or "",
+            signer_id=payload.get("signerId"),
+            email=payload.get("email"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentAllSignaturesDonePayload:
+    """Every required signature on the document has been collected."""
+
+    document_id: str
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentAllSignaturesDonePayload":
+        return cls(document_id=payload.get("documentId") or "")
+
+
+@dataclass(slots=True)
+class DocumentCancelledPayload:
+    """Signing ended without a complete set of signatures."""
+
+    document_id: str
+    cancellation_reason: str | None = None
+    signer_id: str | None = None
+    cancelled_at: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentCancelledPayload":
+        return cls(
+            document_id=payload.get("documentId") or "",
+            cancellation_reason=payload.get("cancellationReason"),
+            signer_id=payload.get("signerId"),
+            cancelled_at=payload.get("cancelledAt"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentRestoredPayload:
+    """A previously cancelled document was restored."""
+
+    document_id: str
+    restored_at: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentRestoredPayload":
+        return cls(
+            document_id=payload.get("documentId") or "",
+            restored_at=payload.get("restoredAt"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentSignedWebhook:
+    """Delivery body for DOCUMENT_SIGNED."""
+
+    event_id: str
+    application: str | None = None
+    company_id: str | None = None
+    event_type: str | None = None
+    payload: DocumentSignedPayload | None = None
+    company_api_id: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentSignedWebhook":
+        inner = payload.get("payload")
+        return cls(
+            event_id=payload.get("eventId") or "",
+            application=payload.get("application"),
+            company_id=payload.get("companyId"),
+            event_type=payload.get("eventType"),
+            payload=DocumentSignedPayload.from_payload(inner) if isinstance(inner, dict) else None,
+            company_api_id=payload.get("companyApiId"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentAllSignaturesDoneWebhook:
+    """Delivery body for DOCUMENT_ALL_SIGNATURES_DONE."""
+
+    event_id: str
+    application: str | None = None
+    company_id: str | None = None
+    event_type: str | None = None
+    payload: DocumentAllSignaturesDonePayload | None = None
+    company_api_id: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentAllSignaturesDoneWebhook":
+        inner = payload.get("payload")
+        return cls(
+            event_id=payload.get("eventId") or "",
+            application=payload.get("application"),
+            company_id=payload.get("companyId"),
+            event_type=payload.get("eventType"),
+            payload=DocumentAllSignaturesDonePayload.from_payload(inner) if isinstance(inner, dict) else None,
+            company_api_id=payload.get("companyApiId"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentCancelledWebhook:
+    """Delivery body for DOCUMENT_CANCELLED."""
+
+    event_id: str
+    application: str | None = None
+    company_id: str | None = None
+    event_type: str | None = None
+    payload: DocumentCancelledPayload | None = None
+    company_api_id: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentCancelledWebhook":
+        inner = payload.get("payload")
+        return cls(
+            event_id=payload.get("eventId") or "",
+            application=payload.get("application"),
+            company_id=payload.get("companyId"),
+            event_type=payload.get("eventType"),
+            payload=DocumentCancelledPayload.from_payload(inner) if isinstance(inner, dict) else None,
+            company_api_id=payload.get("companyApiId"),
+        )
+
+
+@dataclass(slots=True)
+class DocumentRestoredWebhook:
+    """Delivery body for DOCUMENT_RESTORED."""
+
+    event_id: str
+    application: str | None = None
+    company_id: str | None = None
+    event_type: str | None = None
+    payload: DocumentRestoredPayload | None = None
+    company_api_id: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "DocumentRestoredWebhook":
+        inner = payload.get("payload")
+        return cls(
+            event_id=payload.get("eventId") or "",
+            application=payload.get("application"),
+            company_id=payload.get("companyId"),
+            event_type=payload.get("eventType"),
+            payload=DocumentRestoredPayload.from_payload(inner) if isinstance(inner, dict) else None,
+            company_api_id=payload.get("companyApiId"),
         )
 
 

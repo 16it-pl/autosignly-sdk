@@ -284,4 +284,53 @@ public final class Models {
             return number + 1 < totalPages;
         }
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentSignedPayload(String documentId, String signerId, String email) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentAllSignaturesDonePayload(String documentId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentCancelledPayload(
+            String documentId, String cancellationReason, String signerId, String cancelledAt) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentRestoredPayload(String documentId, String restoredAt) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentSignedWebhook(
+            String eventId,
+            String application,
+            String companyId,
+            String eventType,
+            DocumentSignedPayload payload,
+            String companyApiId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentAllSignaturesDoneWebhook(
+            String eventId,
+            String application,
+            String companyId,
+            String eventType,
+            DocumentAllSignaturesDonePayload payload,
+            String companyApiId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentCancelledWebhook(
+            String eventId,
+            String application,
+            String companyId,
+            String eventType,
+            DocumentCancelledPayload payload,
+            String companyApiId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DocumentRestoredWebhook(
+            String eventId,
+            String application,
+            String companyId,
+            String eventType,
+            DocumentRestoredPayload payload,
+            String companyApiId) {}
 }

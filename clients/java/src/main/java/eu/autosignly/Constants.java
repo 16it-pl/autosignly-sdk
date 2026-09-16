@@ -75,4 +75,29 @@ public final class Constants {
         public static final String PROD = "PROD";
         public static final String SANDBOX = "SANDBOX";
     }
+
+    /**
+     * Why signing ended when the document is cancelled.
+     */
+    public static final class CancellationReason {
+        private CancellationReason() {}
+        public static final String REJECTED_BY_SIGNER = "REJECTED_BY_SIGNER";
+        public static final String EXPIRED = "EXPIRED";
+        public static final String CANCELLED_BY_SENDER = "CANCELLED_BY_SENDER";
+    }
+
+    /**
+     * Events Autosignly can POST to a webhook URL.
+     *
+     * <p>The HTTP body is a JSON object with {@code eventId}, {@code application},
+     * {@code companyId}, {@code eventType}, {@code payload} and {@code companyApiId}
+     * (the environment id). Verify the signature of the raw body before parsing it.
+     */
+    public static final class WebhookEventType {
+        private WebhookEventType() {}
+        public static final String DOCUMENT_SIGNED = "DOCUMENT_SIGNED";
+        public static final String DOCUMENT_ALL_SIGNATURES_DONE = "DOCUMENT_ALL_SIGNATURES_DONE";
+        public static final String DOCUMENT_CANCELLED = "DOCUMENT_CANCELLED";
+        public static final String DOCUMENT_RESTORED = "DOCUMENT_RESTORED";
+    }
 }

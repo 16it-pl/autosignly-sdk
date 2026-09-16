@@ -103,7 +103,15 @@ class ContractTest {
                 org.junit.jupiter.params.provider.Arguments.of(Models.Tag.class, "TagResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PartyAddress.class, "PartyAddress"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PageInfo.class, "PageInfo"),
-                org.junit.jupiter.params.provider.Arguments.of(Models.Signer.class, "ExternalSignerRequest"));
+                org.junit.jupiter.params.provider.Arguments.of(Models.Signer.class, "ExternalSignerRequest"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentSignedPayload.class, "DocumentSignedPayload"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentAllSignaturesDonePayload.class, "DocumentAllSignaturesDonePayload"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentCancelledPayload.class, "DocumentCancelledPayload"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentRestoredPayload.class, "DocumentRestoredPayload"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentSignedWebhook.class, "DocumentSignedWebhook"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentAllSignaturesDoneWebhook.class, "DocumentAllSignaturesDoneWebhook"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentCancelledWebhook.class, "DocumentCancelledWebhook"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentRestoredWebhook.class, "DocumentRestoredWebhook"));
     }
 
     @ParameterizedTest(name = "{0} matches {1}")
@@ -190,6 +198,55 @@ class ContractTest {
         missing.removeAll(paths);
 
         assertThat(missing).as("endpoints gone from the API: %s", missing).isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void webhookDeliveriesAreInTheSpec() {
+        Map<String, Object> webhooks = (Map<String, Object>) SPEC.get("webhooks");
+        assertThat(webhooks).containsKeys(
+                "DOCUMENT_SIGNED",
+                "DOCUMENT_ALL_SIGNATURES_DONE",
+                "DOCUMENT_CANCELLED",
+                "DOCUMENT_RESTORED");
+
+        Map<String, Object> signed = (Map<String, Object>) webhooks.get("DOCUMENT_SIGNED");
+        Map<String, Object> post = (Map<String, Object>) signed.get("post");
+
+        List<Map<String, Object>> parameters = new ArrayList<>();
+        if (signed.get("parameters") != null) {
+            parameters.addAll((List<Map<String, Object>>) signed.get("parameters"));
+        }
+        if (post.get("parameters") != null) {
+            parameters.addAll((List<Map<String, Object>>) post.get("parameters"));
+        }
+        String signatureDescription = resolveParameterDescription(parameters, "X-Webhook-Signature");
+        String timestampDescription = resolveParameterDescription(parameters, "X-Webhook-Timestamp");
+        assertThat(signatureDescription).contains("HMAC-SHA256", "v1=");
+        assertThat(timestampDescription).contains("300");
+    }
+
+    /**
+     * The verification algorithm lives on the X-Webhook-* parameter descriptions, not on
+     * the operation description — and the spec may declare a parameter inline or as a
+     * {@code $ref} into {@code components.parameters} (the real generator deduplicates
+     * repeated parameters that way). Resolve either shape rather than assuming one.
+     */
+    @SuppressWarnings("unchecked")
+    private static String resolveParameterDescription(List<Map<String, Object>> parameters, String name) {
+        Map<String, Object> components = (Map<String, Object>) SPEC.get("components");
+        Map<String, Object> sharedParameters = (Map<String, Object>) components.get("parameters");
+        for (Map<String, Object> raw : parameters) {
+            Map<String, Object> param = raw;
+            String ref = (String) raw.get("$ref");
+            if (ref != null) {
+                param = (Map<String, Object>) sharedParameters.get(ref.substring(ref.lastIndexOf('/') + 1));
+            }
+            if (name.equals(param.get("name"))) {
+                return (String) param.get("description");
+            }
+        }
+        throw new AssertionError("parameter " + name + " not declared on the DOCUMENT_SIGNED webhook");
     }
 
     @Test

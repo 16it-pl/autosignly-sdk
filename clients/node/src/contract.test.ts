@@ -36,11 +36,32 @@ import {
   toSigningRequestResult,
   toSmsCountry,
   toTag,
+  toDocumentSignedPayload,
+  toDocumentAllSignaturesDonePayload,
+  toDocumentCancelledPayload,
+  toDocumentRestoredPayload,
+  toDocumentSignedWebhook,
+  toDocumentAllSignaturesDoneWebhook,
+  toDocumentCancelledWebhook,
+  toDocumentRestoredWebhook,
 } from "./models.js";
+
+interface SpecParameter {
+  name?: string;
+  description?: string;
+  $ref?: string;
+}
 
 const SPEC_PATH = join(import.meta.dirname, "..", "..", "..", "spec", "autodocuments-v1.yaml");
 const spec = parseYaml(readFileSync(SPEC_PATH, "utf8")) as {
-  components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+  components: {
+    schemas: Record<string, { properties?: Record<string, unknown> }>;
+    parameters?: Record<string, SpecParameter>;
+  };
+  webhooks?: Record<
+    string,
+    { parameters?: SpecParameter[]; post?: { description?: string; parameters?: SpecParameter[]; requestBody?: unknown } }
+  >;
 };
 
 function propertiesOf(schema: string): Set<string> {
@@ -79,6 +100,14 @@ const PARSERS: [string, string, (payload: never) => unknown][] = [
   ["toTag", "TagResponse", toTag],
   ["toParty", "Party", toParty],
   ["toPartyAddress", "PartyAddress", toPartyAddress],
+  ["toDocumentSignedPayload", "DocumentSignedPayload", toDocumentSignedPayload],
+  ["toDocumentAllSignaturesDonePayload", "DocumentAllSignaturesDonePayload", toDocumentAllSignaturesDonePayload],
+  ["toDocumentCancelledPayload", "DocumentCancelledPayload", toDocumentCancelledPayload],
+  ["toDocumentRestoredPayload", "DocumentRestoredPayload", toDocumentRestoredPayload],
+  ["toDocumentSignedWebhook", "DocumentSignedWebhook", toDocumentSignedWebhook],
+  ["toDocumentAllSignaturesDoneWebhook", "DocumentAllSignaturesDoneWebhook", toDocumentAllSignaturesDoneWebhook],
+  ["toDocumentCancelledWebhook", "DocumentCancelledWebhook", toDocumentCancelledWebhook],
+  ["toDocumentRestoredWebhook", "DocumentRestoredWebhook", toDocumentRestoredWebhook],
 ];
 
 for (const [name, schema, parser] of PARSERS) {
@@ -235,4 +264,38 @@ test("every endpoint the client calls exists in the spec", () => {
 
   const missing = called.filter((path) => !paths.has(path));
   assert.deepEqual(missing, [], `endpoints gone from the API: ${missing.join(", ")}`);
+});
+
+/**
+ * The verification algorithm lives on the X-Webhook-* parameter descriptions, not on
+ * the operation description — and the spec may declare a parameter inline or as a
+ * `$ref` into `components.parameters` (the real generator deduplicates repeated
+ * parameters that way). Resolve either shape rather than assuming one.
+ */
+function resolveParameterDescription(parameters: SpecParameter[], name: string): string {
+  for (const raw of parameters) {
+    const param = raw.$ref ? spec.components.parameters?.[raw.$ref.split("/").pop()!] : raw;
+    if (param?.name === name) return param.description ?? "";
+  }
+  throw new Error(`parameter ${name} not declared on the DOCUMENT_SIGNED webhook`);
+}
+
+test("webhook deliveries are in the spec", () => {
+  const webhooks = spec.webhooks ?? {};
+  for (const name of [
+    "DOCUMENT_SIGNED",
+    "DOCUMENT_ALL_SIGNATURES_DONE",
+    "DOCUMENT_CANCELLED",
+    "DOCUMENT_RESTORED",
+  ]) {
+    assert.ok(webhooks[name], `missing webhook ${name}`);
+  }
+
+  const signed = webhooks.DOCUMENT_SIGNED!;
+  const parameters = [...(signed.parameters ?? []), ...(signed.post?.parameters ?? [])];
+  const signatureDescription = resolveParameterDescription(parameters, "X-Webhook-Signature");
+  const timestampDescription = resolveParameterDescription(parameters, "X-Webhook-Timestamp");
+  assert.match(signatureDescription, /HMAC-SHA256/);
+  assert.match(signatureDescription, /v1=/);
+  assert.match(timestampDescription, /300/);
 });

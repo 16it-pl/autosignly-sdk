@@ -40,6 +40,8 @@ export {
   SigningMode,
   SigningStatus,
   VerificationMethod,
+  CancellationReason,
+  WebhookEventType,
 } from "./models.js";
 export type {
   AllowedSignatureType,
@@ -57,6 +59,14 @@ export type {
   SigningRequestResult,
   SmsCountry,
   Tag,
+  DocumentSignedPayload,
+  DocumentAllSignaturesDonePayload,
+  DocumentCancelledPayload,
+  DocumentRestoredPayload,
+  DocumentSignedWebhook,
+  DocumentAllSignaturesDoneWebhook,
+  DocumentCancelledWebhook,
+  DocumentRestoredWebhook,
 } from "./models.js";
 export * as webhooks from "./webhooks.js";
 export { VERSION } from "./version.js";
