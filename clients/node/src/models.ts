@@ -79,7 +79,7 @@ export const CancellationReason = {
 /**
  * Events Autosignly can POST to a webhook URL.
  *
- * The HTTP body is a JSON object with `eventId`, `application`, `companyId`,
+ * The HTTP body is a JSON object with `eventId`, `companyId`,
  * `eventType`, `payload` and `companyApiId` (the environment id). Verify the
  * signature of the raw body before parsing it — see `webhooks`.
  */
@@ -325,7 +325,6 @@ export interface DocumentRestoredPayload {
 
 export interface DocumentSignedWebhook {
   eventId: string;
-  application?: string;
   companyId?: string;
   eventType?: string;
   payload?: DocumentSignedPayload;
@@ -334,7 +333,6 @@ export interface DocumentSignedWebhook {
 
 export interface DocumentAllSignaturesDoneWebhook {
   eventId: string;
-  application?: string;
   companyId?: string;
   eventType?: string;
   payload?: DocumentAllSignaturesDonePayload;
@@ -343,7 +341,6 @@ export interface DocumentAllSignaturesDoneWebhook {
 
 export interface DocumentCancelledWebhook {
   eventId: string;
-  application?: string;
   companyId?: string;
   eventType?: string;
   payload?: DocumentCancelledPayload;
@@ -352,7 +349,6 @@ export interface DocumentCancelledWebhook {
 
 export interface DocumentRestoredWebhook {
   eventId: string;
-  application?: string;
   companyId?: string;
   eventType?: string;
   payload?: DocumentRestoredPayload;
@@ -555,7 +551,6 @@ function toWebhookEnvelope<T>(
   inner: (body: Json) => T,
 ): {
   eventId: string;
-  application?: string;
   companyId?: string;
   eventType?: string;
   payload?: T;
@@ -564,7 +559,6 @@ function toWebhookEnvelope<T>(
   const nested = payload.payload;
   return {
     eventId: String(payload.eventId ?? ""),
-    application: str(payload.application),
     companyId: str(payload.companyId),
     eventType: str(payload.eventType),
     payload: nested && typeof nested === "object" ? inner(nested as Json) : undefined,

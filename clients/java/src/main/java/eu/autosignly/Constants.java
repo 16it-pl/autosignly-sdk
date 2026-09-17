@@ -89,8 +89,8 @@ public final class Constants {
     /**
      * Events Autosignly can POST to a webhook URL.
      *
-     * <p>The HTTP body is a JSON object with {@code eventId}, {@code application},
-     * {@code companyId}, {@code eventType}, {@code payload} and {@code companyApiId}
+     * <p>The HTTP body is a JSON object with {@code eventId}, {@code companyId},
+     * {@code eventType}, {@code payload} and {@code companyApiId}
      * (the environment id). Verify the signature of the raw body before parsing it.
      */
     public static final class WebhookEventType {

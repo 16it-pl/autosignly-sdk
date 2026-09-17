@@ -154,13 +154,6 @@ components:
     DocumentAllSignaturesDoneWebhook:
       description: Delivery body for DOCUMENT_ALL_SIGNATURES_DONE. Every required signature on the document has been collected.
       properties:
-        application:
-          description: Application that produced the event. Always AUTO_DOKUMENTY for these deliveries.
-          enum:
-          - AUTO_DOKUMENTY
-          examples:
-          - AUTO_DOKUMENTY
-          type: string
         companyApiId:
           description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
             as companyApiId.
@@ -188,7 +181,6 @@ components:
           type: object
       required:
       - eventId
-      - application
       - companyId
       - eventType
       - payload
@@ -230,13 +222,6 @@ components:
     DocumentCancelledWebhook:
       description: Delivery body for DOCUMENT_CANCELLED. Signing ended without a complete set of signatures.
       properties:
-        application:
-          description: Application that produced the event. Always AUTO_DOKUMENTY for these deliveries.
-          enum:
-          - AUTO_DOKUMENTY
-          examples:
-          - AUTO_DOKUMENTY
-          type: string
         companyApiId:
           description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
             as companyApiId.
@@ -264,7 +249,6 @@ components:
           type: object
       required:
       - eventId
-      - application
       - companyId
       - eventType
       - payload
@@ -383,13 +367,6 @@ components:
     DocumentRestoredWebhook:
       description: Delivery body for DOCUMENT_RESTORED. A previously cancelled document was restored and signing can continue.
       properties:
-        application:
-          description: Application that produced the event. Always AUTO_DOKUMENTY for these deliveries.
-          enum:
-          - AUTO_DOKUMENTY
-          examples:
-          - AUTO_DOKUMENTY
-          type: string
         companyApiId:
           description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
             as companyApiId.
@@ -417,7 +394,6 @@ components:
           type: object
       required:
       - eventId
-      - application
       - companyId
       - eventType
       - payload
@@ -448,13 +424,6 @@ components:
     DocumentSignedWebhook:
       description: Delivery body for DOCUMENT_SIGNED. A signer completed their signature; further signers may still be pending.
       properties:
-        application:
-          description: Application that produced the event. Always AUTO_DOKUMENTY for these deliveries.
-          enum:
-          - AUTO_DOKUMENTY
-          examples:
-          - AUTO_DOKUMENTY
-          type: string
         companyApiId:
           description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
             as companyApiId.
@@ -482,7 +451,6 @@ components:
           type: object
       required:
       - eventId
-      - application
       - companyId
       - eventType
       - payload

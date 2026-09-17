@@ -301,7 +301,6 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocumentSignedWebhook(
             String eventId,
-            String application,
             String companyId,
             String eventType,
             DocumentSignedPayload payload,
@@ -310,7 +309,6 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocumentAllSignaturesDoneWebhook(
             String eventId,
-            String application,
             String companyId,
             String eventType,
             DocumentAllSignaturesDonePayload payload,
@@ -319,7 +317,6 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocumentCancelledWebhook(
             String eventId,
-            String application,
             String companyId,
             String eventType,
             DocumentCancelledPayload payload,
@@ -328,7 +325,6 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocumentRestoredWebhook(
             String eventId,
-            String application,
             String companyId,
             String eventType,
             DocumentRestoredPayload payload,

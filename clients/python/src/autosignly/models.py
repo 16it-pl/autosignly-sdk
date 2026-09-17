@@ -75,7 +75,7 @@ class CancellationReason:
 class WebhookEventType:
     """Events Autosignly can POST to a webhook URL.
 
-    The HTTP body is a JSON object with ``eventId``, ``application``, ``companyId``,
+    The HTTP body is a JSON object with ``eventId``, ``companyId``,
     ``eventType``, ``payload`` and ``companyApiId`` (the environment id). Verify the
     signature of the raw body before parsing it — see ``autosignly.webhooks``.
     """
@@ -567,7 +567,6 @@ class DocumentSignedWebhook:
     """Delivery body for DOCUMENT_SIGNED."""
 
     event_id: str
-    application: str | None = None
     company_id: str | None = None
     event_type: str | None = None
     payload: DocumentSignedPayload | None = None
@@ -578,7 +577,6 @@ class DocumentSignedWebhook:
         inner = payload.get("payload")
         return cls(
             event_id=payload.get("eventId") or "",
-            application=payload.get("application"),
             company_id=payload.get("companyId"),
             event_type=payload.get("eventType"),
             payload=DocumentSignedPayload.from_payload(inner) if isinstance(inner, dict) else None,
@@ -591,7 +589,6 @@ class DocumentAllSignaturesDoneWebhook:
     """Delivery body for DOCUMENT_ALL_SIGNATURES_DONE."""
 
     event_id: str
-    application: str | None = None
     company_id: str | None = None
     event_type: str | None = None
     payload: DocumentAllSignaturesDonePayload | None = None
@@ -602,7 +599,6 @@ class DocumentAllSignaturesDoneWebhook:
         inner = payload.get("payload")
         return cls(
             event_id=payload.get("eventId") or "",
-            application=payload.get("application"),
             company_id=payload.get("companyId"),
             event_type=payload.get("eventType"),
             payload=DocumentAllSignaturesDonePayload.from_payload(inner) if isinstance(inner, dict) else None,
@@ -615,7 +611,6 @@ class DocumentCancelledWebhook:
     """Delivery body for DOCUMENT_CANCELLED."""
 
     event_id: str
-    application: str | None = None
     company_id: str | None = None
     event_type: str | None = None
     payload: DocumentCancelledPayload | None = None
@@ -626,7 +621,6 @@ class DocumentCancelledWebhook:
         inner = payload.get("payload")
         return cls(
             event_id=payload.get("eventId") or "",
-            application=payload.get("application"),
             company_id=payload.get("companyId"),
             event_type=payload.get("eventType"),
             payload=DocumentCancelledPayload.from_payload(inner) if isinstance(inner, dict) else None,
@@ -639,7 +633,6 @@ class DocumentRestoredWebhook:
     """Delivery body for DOCUMENT_RESTORED."""
 
     event_id: str
-    application: str | None = None
     company_id: str | None = None
     event_type: str | None = None
     payload: DocumentRestoredPayload | None = None
@@ -650,7 +643,6 @@ class DocumentRestoredWebhook:
         inner = payload.get("payload")
         return cls(
             event_id=payload.get("eventId") or "",
-            application=payload.get("application"),
             company_id=payload.get("companyId"),
             event_type=payload.get("eventType"),
             payload=DocumentRestoredPayload.from_payload(inner) if isinstance(inner, dict) else None,
