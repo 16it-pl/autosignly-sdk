@@ -1,0 +1,26 @@
+{
+  "description": "HMAC-SHA256 webhook signing contract: sign = hex(HMAC-SHA256(key, timestamp + \".\" + body)). Shared across Java, Node and Python. Verify cases use the first vector: a matching signature with tolerance 0, the same signature against a one-byte-changed body, and the original timestamp with the default 300 s replay window (which rejects it because 1700000000 is far in the past).",
+  "vectors": [
+    {
+      "description": "basic json payload",
+      "timestamp": "1700000000",
+      "payload": "{\"eventId\":\"evt_1\",\"eventType\":\"DOCUMENT_SIGNED\"}",
+      "key": "wh_test_1234567890abcdef",
+      "signature": "3355ed51d21a64be9bf9a38ac39148fb22c7191b85c0a23bcee4dc980bd533ec"
+    },
+    {
+      "description": "empty json object payload",
+      "timestamp": "1712345678",
+      "payload": "{}",
+      "key": "wh_another_key_xyz",
+      "signature": "4af70e9e230f75f2a8b3f5b599157e3b1b8256b9a99e2a8cbf05f3afbebfe37f"
+    },
+    {
+      "description": "non-json plain text payload, zero timestamp",
+      "timestamp": "0",
+      "payload": "plain-text-body-not-json",
+      "key": "wh_third_key_00000",
+      "signature": "958f52020902b1005eeb034f946d7ea4893bf3547e632cedd6833d0008a6c0d8"
+    }
+  ]
+}

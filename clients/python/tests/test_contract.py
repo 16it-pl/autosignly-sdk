@@ -32,6 +32,14 @@ from autosignly.models import (
     SigningRequestResult,
     SmsCountry,
     Tag,
+    DocumentSignedPayload,
+    DocumentAllSignaturesDonePayload,
+    DocumentCancelledPayload,
+    DocumentRestoredPayload,
+    DocumentSignedWebhook,
+    DocumentAllSignaturesDoneWebhook,
+    DocumentCancelledWebhook,
+    DocumentRestoredWebhook,
 )
 
 SPEC = yaml.safe_load(
@@ -84,6 +92,14 @@ PARSERS = [
     ("Tag", "TagResponse", Tag.from_payload),
     ("Party", "Party", Party.from_payload),
     ("PartyAddress", "PartyAddress", PartyAddress.from_payload),
+    ("DocumentSignedPayload", "DocumentSignedPayload", DocumentSignedPayload.from_payload),
+    ("DocumentAllSignaturesDonePayload", "DocumentAllSignaturesDonePayload", DocumentAllSignaturesDonePayload.from_payload),
+    ("DocumentCancelledPayload", "DocumentCancelledPayload", DocumentCancelledPayload.from_payload),
+    ("DocumentRestoredPayload", "DocumentRestoredPayload", DocumentRestoredPayload.from_payload),
+    ("DocumentSignedWebhook", "DocumentSignedWebhook", DocumentSignedWebhook.from_payload),
+    ("DocumentAllSignaturesDoneWebhook", "DocumentAllSignaturesDoneWebhook", DocumentAllSignaturesDoneWebhook.from_payload),
+    ("DocumentCancelledWebhook", "DocumentCancelledWebhook", DocumentCancelledWebhook.from_payload),
+    ("DocumentRestoredWebhook", "DocumentRestoredWebhook", DocumentRestoredWebhook.from_payload),
 ]
 
 
@@ -184,3 +200,39 @@ def test_every_endpoint_the_client_calls_exists() -> None:
     }
     missing = sorted(called - set(SPEC["paths"]))
     assert missing == [], f"endpoints gone from the API: {', '.join(missing)}"
+
+
+def _resolve_parameter_description(parameters: list[dict], name: str) -> str:
+    """The verification algorithm lives on the X-Webhook-* parameter descriptions, not on
+    the operation description — and the spec may declare a parameter inline or as a
+    `$ref` into `components.parameters` (the real generator deduplicates repeated
+    parameters that way). Resolve either shape rather than assuming one."""
+    for param in parameters:
+        if "$ref" in param:
+            ref_name = param["$ref"].rsplit("/", 1)[1]
+            param = SPEC["components"]["parameters"][ref_name]
+        if param.get("name") == name:
+            return param.get("description", "")
+    raise AssertionError(f"parameter {name} not declared on the DOCUMENT_SIGNED webhook")
+
+
+def test_webhook_deliveries_are_in_the_spec() -> None:
+    webhooks = SPEC.get("webhooks") or {}
+    assert set(webhooks) >= {
+        "DOCUMENT_SIGNED",
+        "DOCUMENT_ALL_SIGNATURES_DONE",
+        "DOCUMENT_CANCELLED",
+        "DOCUMENT_RESTORED",
+    }
+
+    signed = webhooks["DOCUMENT_SIGNED"]
+    parameters = (signed.get("parameters") or []) + (signed["post"].get("parameters") or [])
+    signature_description = _resolve_parameter_description(parameters, "X-Webhook-Signature")
+    timestamp_description = _resolve_parameter_description(parameters, "X-Webhook-Timestamp")
+    assert "HMAC-SHA256" in signature_description
+    assert "v1=" in signature_description
+    assert "300" in timestamp_description
+
+    assert webhooks["DOCUMENT_SIGNED"]["post"]["requestBody"]["content"]["application/json"]["schema"][
+        "$ref"
+    ] == "#/components/schemas/DocumentSignedWebhook"

@@ -1,4 +1,26 @@
 components:
+  parameters:
+    X-Webhook-Signature:
+      description: HMAC-SHA256 of `timestamp + '.' + raw_body` with the environment webhook key, formatted `v1=<hex>`. Sign
+        the request body exactly as received — do not re-serialize the JSON before hashing it. Several comma-separated values
+        are sent while the key is rotated; accept if any matches.
+      in: header
+      name: X-Webhook-Signature
+      required: true
+      schema:
+        examples:
+        - v1=3355ed51d21a64be9bf9a38ac39148fb22c7191b85c0a23bcee4dc980bd533ec
+        type: string
+    X-Webhook-Timestamp:
+      description: Unix seconds when the body was signed. Discard the delivery if it differs from the current time by more
+        than 300 seconds.
+      in: header
+      name: X-Webhook-Timestamp
+      required: true
+      schema:
+        examples:
+        - '1700000000'
+        type: string
   schemas:
     AllowedSignatureType:
       description: One signature type a signer from this country may be asked for, together with the ways they may confirm
@@ -91,6 +113,14 @@ components:
             and the attachment is skipped when the document is signed.
           type: string
       type: object
+    CancellationReason:
+      description: Why a document ended in CANCELLED or CANCELLED_REMOVABLE. Absent when signing was not cancelled. Distinguishes
+        three outcomes that share the same status.
+      enum:
+      - REJECTED_BY_SIGNER
+      - EXPIRED
+      - CANCELLED_BY_SENDER
+      type: string
     CredentialsResponse:
       description: Who the caller is and which environment the key belongs to.
       properties:
@@ -110,6 +140,52 @@ components:
           - true
           type: boolean
       type: object
+    DocumentAllSignaturesDonePayload:
+      description: Every required signature on the document has been collected.
+      properties:
+        documentId:
+          description: Document that is now fully signed.
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          type: string
+      required:
+      - documentId
+      type: object
+    DocumentAllSignaturesDoneWebhook:
+      description: Delivery body for DOCUMENT_ALL_SIGNATURES_DONE. Every required signature on the document has been collected.
+      properties:
+        companyApiId:
+          description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
+            as companyApiId.
+          examples:
+          - PROD
+          type: string
+        companyId:
+          description: Company that owns the document.
+          examples:
+          - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
+          type: string
+        eventId:
+          description: Unique id of this delivery. Use it to ignore duplicates.
+          examples:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          type: string
+        eventType:
+          description: Domain event type.
+          enum:
+          - DOCUMENT_ALL_SIGNATURES_DONE
+          type: string
+        payload:
+          $ref: '#/components/schemas/DocumentAllSignaturesDonePayload'
+          description: Event-specific fields.
+          type: object
+      required:
+      - eventId
+      - companyId
+      - eventType
+      - payload
+      - companyApiId
+      type: object
     DocumentAttachmentStatus:
       description: Attachment processing status. READY = converted to PDF and ready to be merged into the signed document;
         FAILED = conversion failed, the attachment is skipped when the document is sent to sign.
@@ -117,21 +193,93 @@ components:
       - READY
       - FAILED
       type: string
+    DocumentCancelledPayload:
+      description: Signing ended without a complete set of signatures.
+      properties:
+        cancellationReason:
+          $ref: '#/components/schemas/CancellationReason'
+          description: Why signing ended. Distinguishes a signer refusal, an expired link and a sender cancellation.
+          type: string
+        cancelledAt:
+          description: Instant the cancellation was recorded, UTC.
+          examples:
+          - '2026-09-10T11:00:00Z'
+          type: string
+        documentId:
+          description: Document whose signing was cancelled.
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          type: string
+        signerId:
+          description: Signer who refused or whose link expired. Null when the sender cancelled the process.
+          examples:
+          - 7c2a1b4e-9d3f-4a12-8e5b-1f6c0a9d8e7b
+          type: string
+      required:
+      - documentId
+      - cancelledAt
+      type: object
+    DocumentCancelledWebhook:
+      description: Delivery body for DOCUMENT_CANCELLED. Signing ended without a complete set of signatures.
+      properties:
+        companyApiId:
+          description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
+            as companyApiId.
+          examples:
+          - PROD
+          type: string
+        companyId:
+          description: Company that owns the document.
+          examples:
+          - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
+          type: string
+        eventId:
+          description: Unique id of this delivery. Use it to ignore duplicates.
+          examples:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          type: string
+        eventType:
+          description: Domain event type.
+          enum:
+          - DOCUMENT_CANCELLED
+          type: string
+        payload:
+          $ref: '#/components/schemas/DocumentCancelledPayload'
+          description: Event-specific fields.
+          type: object
+      required:
+      - eventId
+      - companyId
+      - eventType
+      - payload
+      - companyApiId
+      type: object
     DocumentInfoResponse:
       description: Full details of a single document, including its current status, signing mode, and the list of assigned
         signers.
       properties:
+        cancellationReason:
+          $ref: '#/components/schemas/CancellationReason'
+          description: Why signing ended when status is CANCELLED or CANCELLED_REMOVABLE. Null otherwise.
+          type: string
         companyId:
           description: ID of the company that owns this document.
           examples:
           - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
           type: string
         fileUrl:
-          description: Short-lived link to the document file. Null when the document has no file yet. The link expires, so
-            fetch the document again to obtain a fresh one rather than storing it. A document that is still being signed can
-            be downloaded as well - it then carries only the signatures collected so far.
+          description: Short-lived link to the document file. Null when the document has no file yet. The link expires at
+            fileUrlExpiresAt, so fetch the document again to obtain a fresh one rather than storing it. A document that is
+            still being signed can be downloaded as well - it then carries only the signatures collected so far.
           examples:
           - https://files.autosignly.eu/...
+          type: string
+        fileUrlExpiresAt:
+          $ref: '#/components/schemas/Instant'
+          description: Expiry timestamp of fileUrl, in UTC. Present only when fileUrl is not null. The link is valid until
+            this instant; fetch the document again afterwards to obtain a fresh one.
+          examples:
+          - '2026-08-31T18:04:00Z'
           type: string
         id:
           description: Unique document identifier.
@@ -165,11 +313,15 @@ components:
     DocumentListItemResponse:
       description: Summary of a single document as returned in a paged list. Does not include signer details.
       properties:
+        cancellationReason:
+          $ref: '#/components/schemas/CancellationReason'
+          description: Why signing ended when status is CANCELLED or CANCELLED_REMOVABLE. Null otherwise.
+          type: string
         createdAt:
           $ref: '#/components/schemas/Instant'
           description: Timestamp when the document was created.
           examples:
-          - 2024-03-15 10:30:00+00:00
+          - '2024-03-15T10:30:00Z'
           type: string
         id:
           description: Unique document identifier.
@@ -195,6 +347,115 @@ components:
             $ref: '#/components/schemas/TagResponse'
           type: array
       type: object
+    DocumentRestoredPayload:
+      description: A previously cancelled document was restored and signing can continue.
+      properties:
+        documentId:
+          description: Document that was restored.
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          type: string
+        restoredAt:
+          description: Instant the document was restored, UTC.
+          examples:
+          - '2026-09-10T11:00:00Z'
+          type: string
+      required:
+      - documentId
+      - restoredAt
+      type: object
+    DocumentRestoredWebhook:
+      description: Delivery body for DOCUMENT_RESTORED. A previously cancelled document was restored and signing can continue.
+      properties:
+        companyApiId:
+          description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
+            as companyApiId.
+          examples:
+          - PROD
+          type: string
+        companyId:
+          description: Company that owns the document.
+          examples:
+          - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
+          type: string
+        eventId:
+          description: Unique id of this delivery. Use it to ignore duplicates.
+          examples:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          type: string
+        eventType:
+          description: Domain event type.
+          enum:
+          - DOCUMENT_RESTORED
+          type: string
+        payload:
+          $ref: '#/components/schemas/DocumentRestoredPayload'
+          description: Event-specific fields.
+          type: object
+      required:
+      - eventId
+      - companyId
+      - eventType
+      - payload
+      - companyApiId
+      type: object
+    DocumentSignedPayload:
+      description: A signer completed their signature on the document.
+      properties:
+        documentId:
+          description: Document that received the signature.
+          examples:
+          - 03bef6df-faca-4aee-9836-80caeeaf4418
+          type: string
+        email:
+          description: Email of the signer who just signed. Omitted when the signer has no email.
+          examples:
+          - jan.kowalski@example.com
+          type: string
+        signerId:
+          description: Signer who just signed.
+          examples:
+          - 7c2a1b4e-9d3f-4a12-8e5b-1f6c0a9d8e7b
+          type: string
+      required:
+      - documentId
+      - signerId
+      type: object
+    DocumentSignedWebhook:
+      description: Delivery body for DOCUMENT_SIGNED. A signer completed their signature; further signers may still be pending.
+      properties:
+        companyApiId:
+          description: Environment this event belongs to. Production is the literal PROD; a sandbox is a UUID. Serialized
+            as companyApiId.
+          examples:
+          - PROD
+          type: string
+        companyId:
+          description: Company that owns the document.
+          examples:
+          - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
+          type: string
+        eventId:
+          description: Unique id of this delivery. Use it to ignore duplicates.
+          examples:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          type: string
+        eventType:
+          description: Domain event type.
+          enum:
+          - DOCUMENT_SIGNED
+          type: string
+        payload:
+          $ref: '#/components/schemas/DocumentSignedPayload'
+          description: Event-specific fields.
+          type: object
+      required:
+      - eventId
+      - companyId
+      - eventType
+      - payload
+      - companyApiId
+      type: object
     DocumentSigningMode:
       enum:
       - REQUIRES_SIGNATURE
@@ -208,8 +469,9 @@ components:
         all retries, awaiting manual retry; WAITING_FOR_SIGNATURE = invitations sent; SIGNING_IN_PROGRESS = at least one signer
         signed; AWAITING_FINAL_USB_SIGN = final USB seal in progress; NEED_RETRY_USB_FINALIZE = final seal failed fast retries,
         hourly auto-retry active up to 12h; USB_SIGN_FINAL_FAILED = final seal exhausted all retries, awaiting manual retry;
-        SIGNED = all signatures collected; CANCELLED = signing cancelled after at least one signature or link expiry; CANCELLED_REMOVABLE
-        = cancelled before any signature collected, restorable to GENERATED.
+        SIGNED = all signatures collected; CANCELLED = signing ended as a retained record (signer rejection, link expiry,
+        or sender cancel after a signature); CANCELLED_REMOVABLE = cancelled by the sender before any signature collected,
+        restorable to GENERATED.
       enum:
       - GENERATED
       - SIGNERS_ASSIGNED
@@ -298,11 +560,15 @@ components:
       type: object
     Instant:
       examples:
-      - 2022-03-10 16:15:50+00:00
+      - '2022-03-10T16:15:50Z'
       format: date-time
       type: string
     Locale:
       properties:
+        ISO3Country:
+          type: string
+        ISO3Language:
+          type: string
         country:
           type: string
         displayCountry:
@@ -321,10 +587,6 @@ components:
             type: string
           type: array
           uniqueItems: true
-        iSO3Country:
-          type: string
-        iSO3Language:
-          type: string
         language:
           type: string
         script:
@@ -396,7 +658,7 @@ components:
           $ref: '#/components/schemas/Instant'
           description: When the party was created.
           examples:
-          - 2026-08-27 08:14:31+00:00
+          - '2026-08-27T08:14:31Z'
           type: string
         email:
           description: E-mail address.
@@ -679,6 +941,13 @@ components:
           examples:
           - '+48600100200'
           type: string
+        rejectedAt:
+          $ref: '#/components/schemas/Instant'
+          description: Timestamp when this signer rejected the document. Null if they did not reject.
+          type: string
+        rejectionReason:
+          description: Comment given when this signer rejected. Null if they did not reject or left no comment.
+          type: string
         sandboxSignUrl:
           description: Sandbox only. Signing page URL for the current unsigned signer. Always null in production.
           examples:
@@ -697,7 +966,7 @@ components:
           description: When this signer signed, or null while their signature is still outstanding. Set once, when the signature
             is stored, and never moved afterwards.
           examples:
-          - 2024-05-06 09:31:14+00:00
+          - '2024-05-06T09:31:14Z'
           type: string
         signingOrder:
           description: Position of this signer in the sequential signing order. The signer with order 1 signs first.
@@ -721,7 +990,7 @@ components:
           $ref: '#/components/schemas/Instant'
           description: Expiry timestamp of sandboxSignUrl. Null whenever that is null.
           examples:
-          - 2026-05-11 10:00:00+00:00
+          - '2026-05-11T10:00:00Z'
           type: string
         sandboxSignUrl:
           description: Sandbox only. Signing page of the signer whose turn it is. A sandbox sends no email and no SMS and
@@ -958,10 +1227,15 @@ paths:
   /api/publics/v1/documents:
     get:
       description: 'Returns a paged list of documents belonging to the company identified by the API key. Optionally filter
-        by one or more statuses, by tag, or by both. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
+        by one or more statuses, by cancellation reason, by tag, or by both. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
 
         '
       parameters:
+      - description: Filter by cancellation reason, e.g. cancellationReason=REJECTED_BY_SIGNER
+        in: query
+        name: cancellationReason
+        schema:
+          $ref: '#/components/schemas/CancellationReason'
       - in: query
         name: page
         schema:
@@ -1249,9 +1523,10 @@ paths:
         to documents belonging to the company identified by the API key.
 
 
-        The response carries `fileUrl`, a short-lived link to the document file. The link expires, so fetch the document again
-        to obtain a fresh one rather than storing it. A document that is still being signed can be downloaded as well - it
-        then carries only the signatures collected so far.
+        The response carries `fileUrl`, a short-lived link to the document file, and `fileUrlExpiresAt`, the UTC instant when
+        that link stops working. Fetch the document again afterwards to obtain a fresh one rather than storing the link. Both
+        fields are null when the document has no file yet. A document that is still being signed can be downloaded as well
+        - it then carries only the signatures collected so far.
 
         '
       parameters:
@@ -2093,3 +2368,79 @@ tags:
 - description: Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key decides the
     environment, so a sandbox key never sees production tags.
   name: Public API – tags
+- description: Outbound callbacks Autosignly POSTs to the webhook URL configured for the environment. They are not operations
+    you call. Verify X-Webhook-Signature before parsing the body.
+  name: Public API – webhooks
+webhooks:
+  DOCUMENT_ALL_SIGNATURES_DONE:
+    post:
+      description: Posted when every required signature on the document has been collected.
+      parameters:
+      - $ref: '#/components/parameters/X-Webhook-Timestamp'
+      - $ref: '#/components/parameters/X-Webhook-Signature'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentAllSignaturesDoneWebhook'
+        required: true
+      responses:
+        2XX:
+          description: Delivery received successfully.
+      summary: Every required signature has been collected
+      tags:
+      - Public API – webhooks
+  DOCUMENT_CANCELLED:
+    post:
+      description: Posted when signing ends without a complete set of signatures.
+      parameters:
+      - $ref: '#/components/parameters/X-Webhook-Timestamp'
+      - $ref: '#/components/parameters/X-Webhook-Signature'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCancelledWebhook'
+        required: true
+      responses:
+        2XX:
+          description: Delivery received successfully.
+      summary: Signing ended without a complete set of signatures
+      tags:
+      - Public API – webhooks
+  DOCUMENT_RESTORED:
+    post:
+      description: Posted when a cancelled document is restored and signing can continue.
+      parameters:
+      - $ref: '#/components/parameters/X-Webhook-Timestamp'
+      - $ref: '#/components/parameters/X-Webhook-Signature'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentRestoredWebhook'
+        required: true
+      responses:
+        2XX:
+          description: Delivery received successfully.
+      summary: A cancelled document was restored
+      tags:
+      - Public API – webhooks
+  DOCUMENT_SIGNED:
+    post:
+      description: Posted when one signer finishes. Other required signers may still be pending.
+      parameters:
+      - $ref: '#/components/parameters/X-Webhook-Timestamp'
+      - $ref: '#/components/parameters/X-Webhook-Signature'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentSignedWebhook'
+        required: true
+      responses:
+        2XX:
+          description: Delivery received successfully.
+      summary: A signer completed their signature
+      tags:
+      - Public API – webhooks
