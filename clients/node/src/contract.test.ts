@@ -36,6 +36,9 @@ import {
   toSigningRequestResult,
   toSmsCountry,
   toTag,
+  toWebhookConfiguration,
+  toWebhookKey,
+  toWebhookRegistered,
 } from "./models.js";
 
 const SPEC_PATH = join(import.meta.dirname, "..", "..", "..", "spec", "autodocuments-v1.yaml");
@@ -79,6 +82,9 @@ const PARSERS: [string, string, (payload: never) => unknown][] = [
   ["toTag", "TagResponse", toTag],
   ["toParty", "Party", toParty],
   ["toPartyAddress", "PartyAddress", toPartyAddress],
+  ["toWebhookRegistered", "WebhookRegistered", toWebhookRegistered],
+  ["toWebhookConfiguration", "WebhookConfiguration", toWebhookConfiguration],
+  ["toWebhookKey", "WebhookKey", toWebhookKey],
 ];
 
 for (const [name, schema, parser] of PARSERS) {

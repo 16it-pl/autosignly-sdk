@@ -32,6 +32,9 @@ from autosignly.models import (
     SigningRequestResult,
     SmsCountry,
     Tag,
+    WebhookConfiguration,
+    WebhookKey,
+    WebhookRegistered,
 )
 
 SPEC = yaml.safe_load(
@@ -84,6 +87,9 @@ PARSERS = [
     ("Tag", "TagResponse", Tag.from_payload),
     ("Party", "Party", Party.from_payload),
     ("PartyAddress", "PartyAddress", PartyAddress.from_payload),
+    ("WebhookRegistered", "WebhookRegistered", WebhookRegistered.from_payload),
+    ("WebhookConfiguration", "WebhookConfiguration", WebhookConfiguration.from_payload),
+    ("WebhookKey", "WebhookKey", WebhookKey.from_payload),
 ]
 
 

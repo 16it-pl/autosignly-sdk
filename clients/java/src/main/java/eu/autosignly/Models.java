@@ -61,6 +61,19 @@ public final class Models {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Tag(String id, String name, String color) {}
 
+    /** A signing key, by name and dates. The value exists only where it was issued. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record WebhookKey(String id, String name, String createdAt, String revokedAt) {}
+
+    /** The registration now in force, with the signing key issued for it. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record WebhookRegistered(String url, List<String> events, WebhookKey key, String signingKey) {}
+
+    /** The webhook configuration, without any key value. Safe to log or show in a support screen. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record WebhookConfiguration(
+            String url, List<String> events, boolean hasActiveSigningKey, List<WebhookKey> keys) {}
+
     /** Registered address of a party. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -38,6 +38,8 @@ import eu.autosignly.Models.Signer;
 import eu.autosignly.Models.SigningRequestResult;
 import eu.autosignly.Models.SmsCountry;
 import eu.autosignly.Models.Tag;
+import eu.autosignly.Models.WebhookConfiguration;
+import eu.autosignly.Models.WebhookRegistered;
 
 /**
  * Client for the Autosignly API.
@@ -482,6 +484,29 @@ public final class AutosignlyClient {
     /** Remove a tag from the pool and from every document carrying it. */
     public void deleteTag(String tagId) {
         request("DELETE", "/tags/" + tagId, null, null);
+    }
+
+    /**
+     * Register where this environment's webhooks go, and receive the key that signs them.
+     *
+     * <p>{@code signingKey} is returned only here - store it now, it cannot be read back.
+     * Works once per environment: an integration that already has a destination or a key is
+     * refused with a 409 and is changed in the Autosignly panel from then on.
+     */
+    public WebhookRegistered registerWebhook(String keyName, String url, List<String> events) {
+        ObjectNode body = mapper.createObjectNode().put("keyName", keyName);
+        if (url != null) {
+            body.put("url", url);
+        }
+        if (events != null) {
+            body.set("events", mapper.valueToTree(events));
+        }
+        return read(request("POST", "/webhooks", body, null), WebhookRegistered.class);
+    }
+
+    /** Read the destination, the events and every key by name and date. No key value is returned. */
+    public WebhookConfiguration getWebhookConfiguration() {
+        return read(request("GET", "/webhooks", null, null), WebhookConfiguration.class);
     }
 
     /**

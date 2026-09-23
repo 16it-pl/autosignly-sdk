@@ -50,6 +50,9 @@ from .models import (
     SigningStatus,
     SmsCountry,
     Tag,
+    WebhookConfiguration,
+    WebhookKey,
+    WebhookRegistered,
     VerificationMethod,
 )
 
@@ -89,6 +92,9 @@ __all__ = [
     "SigningStatus",
     "SmsCountry",
     "Tag",
+    "WebhookConfiguration",
+    "WebhookKey",
+    "WebhookRegistered",
     "VerificationMethod",
     "webhooks",
 ]

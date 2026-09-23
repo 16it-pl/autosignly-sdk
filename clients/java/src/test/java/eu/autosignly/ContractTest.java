@@ -103,6 +103,10 @@ class ContractTest {
                 org.junit.jupiter.params.provider.Arguments.of(Models.Tag.class, "TagResponse"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PartyAddress.class, "PartyAddress"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.PageInfo.class, "PageInfo"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.WebhookRegistered.class, "WebhookRegistered"),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        Models.WebhookConfiguration.class, "WebhookConfiguration"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.WebhookKey.class, "WebhookKey"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.Signer.class, "ExternalSignerRequest"));
     }
 
