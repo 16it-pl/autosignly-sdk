@@ -1010,11 +1010,6 @@ components:
       required:
       - keyName
       type: object
-  securitySchemes:
-    SecurityScheme:
-      description: Authentication
-      openIdConnectUrl: https://auth.16it.org/realms/local-16it/.well-known/openid-configuration
-      type: openIdConnect
 info:
   title: Autosignly API
   version: v1
@@ -1104,13 +1099,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
@@ -1768,13 +1763,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
@@ -2081,13 +2076,13 @@ paths:
       - in: query
         name: page
         schema:
-          default: '0'
+          default: 0
           format: int32
           type: integer
       - in: query
         name: size
         schema:
-          default: '20'
+          default: 20
           format: int32
           type: integer
       - in: query
