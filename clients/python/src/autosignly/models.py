@@ -240,6 +240,66 @@ class Tag:
 
 
 @dataclass(slots=True)
+class WebhookKey:
+    """A signing key, by name and dates. The value exists only where it was issued."""
+
+    id: str
+    name: str
+    created_at: str | None = None
+    revoked_at: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "WebhookKey":
+        return cls(
+            id=payload["id"],
+            name=payload["name"],
+            created_at=payload.get("createdAt"),
+            revoked_at=payload.get("revokedAt"),
+        )
+
+
+@dataclass(slots=True)
+class WebhookRegistered:
+    """The registration now in force, with the signing key issued for it."""
+
+    url: str | None
+    events: tuple[str, ...]
+    key: WebhookKey
+    signing_key: str
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "WebhookRegistered":
+        return cls(
+            url=payload.get("url"),
+            events=tuple(payload.get("events") or ()),
+            key=WebhookKey.from_payload(payload.get("key") or {}),
+            signing_key=payload.get("signingKey", ""),
+        )
+
+
+@dataclass(slots=True)
+class WebhookConfiguration:
+    """The webhook configuration, without any key value.
+
+    Safe to log or show in a support screen.
+    """
+
+    url: str | None = None
+    events: tuple[str, ...] = ()
+    has_active_signing_key: bool = False
+    keys: tuple[WebhookKey, ...] = ()
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "WebhookConfiguration":
+        return cls(
+            url=payload.get("url"),
+            events=tuple(payload.get("events") or ()),
+            has_active_signing_key=bool(payload.get("hasActiveSigningKey")),
+            keys=tuple(WebhookKey.from_payload(key) for key in payload.get("keys") or ()),
+        )
+
+
+@dataclass(slots=True)
 class SignerStatus:
     """Where a signer stands, and the link they were given."""
 

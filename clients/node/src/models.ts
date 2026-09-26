@@ -102,6 +102,37 @@ export interface Tag {
   color?: string;
 }
 
+/** A signing key, by name and dates. The value exists only in the response that issued it. */
+export interface WebhookKey {
+  id: string;
+  name: string;
+  createdAt?: string;
+  /** Set once the key stops verifying deliveries. */
+  revokedAt?: string;
+}
+
+/** The registration now in force, with the signing key issued for it. */
+export interface WebhookRegistered {
+  /** Address deliveries are POSTed to, or undefined when they go through the CLI relay. */
+  url?: string;
+  /** Event names this environment is subscribed to. */
+  events: string[];
+  /** The key issued by this call. */
+  key: WebhookKey;
+  /** The signing key value. Returned here and nowhere else - store it now. */
+  signingKey: string;
+}
+
+/** The webhook configuration, without any key value. Safe to log or show in a support screen. */
+export interface WebhookConfiguration {
+  url?: string;
+  events: string[];
+  /** Whether at least one key still verifies deliveries. */
+  hasActiveSigningKey: boolean;
+  /** Every key ever issued for this environment, by name and dates. */
+  keys: WebhookKey[];
+}
+
 /** Whether a party is a business or a natural person. */
 export const PartyType = {
   COMPANY: "COMPANY",
@@ -291,6 +322,33 @@ export function toTag(payload: Json): Tag {
     id: String(payload.id ?? ""),
     name: String(payload.name ?? ""),
     color: str(payload.color),
+  };
+}
+
+export function toWebhookKey(payload: Json): WebhookKey {
+  return {
+    id: String(payload.id ?? ""),
+    name: String(payload.name ?? ""),
+    createdAt: str(payload.createdAt),
+    revokedAt: str(payload.revokedAt),
+  };
+}
+
+export function toWebhookRegistered(payload: Json): WebhookRegistered {
+  return {
+    url: str(payload.url),
+    events: Array.isArray(payload.events) ? payload.events.map(String) : [],
+    key: toWebhookKey((payload.key ?? {}) as Json),
+    signingKey: String(payload.signingKey ?? ""),
+  };
+}
+
+export function toWebhookConfiguration(payload: Json): WebhookConfiguration {
+  return {
+    url: str(payload.url),
+    events: Array.isArray(payload.events) ? payload.events.map(String) : [],
+    hasActiveSigningKey: payload.hasActiveSigningKey === true,
+    keys: Array.isArray(payload.keys) ? payload.keys.map((key) => toWebhookKey(key as Json)) : [],
   };
 }
 

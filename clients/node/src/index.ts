@@ -57,6 +57,9 @@ export type {
   SigningRequestResult,
   SmsCountry,
   Tag,
+  WebhookConfiguration,
+  WebhookKey,
+  WebhookRegistered,
 } from "./models.js";
 export * as webhooks from "./webhooks.js";
 export { VERSION } from "./version.js";

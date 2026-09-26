@@ -91,6 +91,14 @@ components:
             and the attachment is skipped when the document is signed.
           type: string
       type: object
+    CancellationReason:
+      description: Why a document ended in CANCELLED or CANCELLED_REMOVABLE. Absent when signing was not cancelled. Distinguishes
+        three outcomes that share the same status.
+      enum:
+      - REJECTED_BY_SIGNER
+      - EXPIRED
+      - CANCELLED_BY_SENDER
+      type: string
     CredentialsResponse:
       description: Who the caller is and which environment the key belongs to.
       properties:
@@ -121,17 +129,28 @@ components:
       description: Full details of a single document, including its current status, signing mode, and the list of assigned
         signers.
       properties:
+        cancellationReason:
+          $ref: '#/components/schemas/CancellationReason'
+          description: Why signing ended when status is CANCELLED or CANCELLED_REMOVABLE. Null otherwise.
+          type: string
         companyId:
           description: ID of the company that owns this document.
           examples:
           - 7f3c1a2b-beef-4d5e-a6f7-123456789abc
           type: string
         fileUrl:
-          description: Short-lived link to the document file. Null when the document has no file yet. The link expires, so
-            fetch the document again to obtain a fresh one rather than storing it. A document that is still being signed can
-            be downloaded as well - it then carries only the signatures collected so far.
+          description: Short-lived link to the document file. Null when the document has no file yet. The link expires at
+            fileUrlExpiresAt, so fetch the document again to obtain a fresh one rather than storing it. A document that is
+            still being signed can be downloaded as well - it then carries only the signatures collected so far.
           examples:
           - https://files.autosignly.eu/...
+          type: string
+        fileUrlExpiresAt:
+          $ref: '#/components/schemas/Instant'
+          description: Expiry timestamp of fileUrl, in UTC. Present only when fileUrl is not null. The link is valid until
+            this instant; fetch the document again afterwards to obtain a fresh one.
+          examples:
+          - 2026-08-31 18:04:00+00:00
           type: string
         id:
           description: Unique document identifier.
@@ -165,6 +184,10 @@ components:
     DocumentListItemResponse:
       description: Summary of a single document as returned in a paged list. Does not include signer details.
       properties:
+        cancellationReason:
+          $ref: '#/components/schemas/CancellationReason'
+          description: Why signing ended when status is CANCELLED or CANCELLED_REMOVABLE. Null otherwise.
+          type: string
         createdAt:
           $ref: '#/components/schemas/Instant'
           description: Timestamp when the document was created.
@@ -208,8 +231,9 @@ components:
         all retries, awaiting manual retry; WAITING_FOR_SIGNATURE = invitations sent; SIGNING_IN_PROGRESS = at least one signer
         signed; AWAITING_FINAL_USB_SIGN = final USB seal in progress; NEED_RETRY_USB_FINALIZE = final seal failed fast retries,
         hourly auto-retry active up to 12h; USB_SIGN_FINAL_FAILED = final seal exhausted all retries, awaiting manual retry;
-        SIGNED = all signatures collected; CANCELLED = signing cancelled after at least one signature or link expiry; CANCELLED_REMOVABLE
-        = cancelled before any signature collected, restorable to GENERATED.
+        SIGNED = all signatures collected; CANCELLED = signing ended as a retained record (signer rejection, link expiry,
+        or sender cancel after a signature); CANCELLED_REMOVABLE = cancelled by the sender before any signature collected,
+        restorable to GENERATED.
       enum:
       - GENERATED
       - SIGNERS_ASSIGNED
@@ -303,6 +327,10 @@ components:
       type: string
     Locale:
       properties:
+        ISO3Country:
+          type: string
+        ISO3Language:
+          type: string
         country:
           type: string
         displayCountry:
@@ -321,10 +349,6 @@ components:
             type: string
           type: array
           uniqueItems: true
-        iSO3Country:
-          type: string
-        iSO3Language:
-          type: string
         language:
           type: string
         script:
@@ -679,6 +703,13 @@ components:
           examples:
           - '+48600100200'
           type: string
+        rejectedAt:
+          $ref: '#/components/schemas/Instant'
+          description: Timestamp when this signer rejected the document. Null if they did not reject.
+          type: string
+        rejectionReason:
+          description: Comment given when this signer rejected. Null if they did not reject or left no comment.
+          type: string
         sandboxSignUrl:
           description: Sandbox only. Signing page URL for the current unsigned signer. Always null in production.
           examples:
@@ -881,6 +912,104 @@ components:
       examples:
       - SMS
       type: string
+    WebhookConfiguration:
+      description: The webhook configuration currently in force. Signing key values are never returned here - only which keys
+        exist, so the state of the setup can be checked without handling secrets.
+      properties:
+        events:
+          description: Subscribed event names.
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+        hasActiveSigningKey:
+          description: True when at least one key still verifies deliveries.
+          type: boolean
+        keys:
+          description: Every signing key ever issued for this environment, by name and dates.
+          items:
+            $ref: '#/components/schemas/WebhookKey'
+          type: array
+        url:
+          description: URL events are POSTed to. Null when delivery goes through the CLI relay.
+          type: string
+      type: object
+    WebhookKey:
+      description: An issued webhook signing key. The value itself is returned only once, when the key is created.
+      properties:
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+          description: When the key was issued.
+          type: string
+        id:
+          description: Identifier used to revoke this key.
+          type: string
+        name:
+          description: Display name given when the key was issued.
+          examples:
+          - ERPNext production
+          type: string
+        revokedAt:
+          $ref: '#/components/schemas/Instant'
+          description: When the key was revoked. Null while it is still accepted.
+          type: string
+      type: object
+    WebhookRegistered:
+      description: The registration that is now in force, together with the signing key issued for it. The key value appears
+        here and nowhere else - store it now.
+      properties:
+        events:
+          description: Subscribed event names.
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+        key:
+          $ref: '#/components/schemas/WebhookKey'
+          description: The signing key issued by this call.
+          type: object
+        signingKey:
+          description: The signing key value. Verify the signature on every delivery against it.
+          examples:
+          - wh_0XHLWp0eu5VRxdWJ_xcG
+          type: string
+        url:
+          description: URL events are POSTed to. Null when delivery goes through the CLI relay.
+          type: string
+      type: object
+    WebhookRegistrationRequest:
+      description: Where to deliver webhooks for the environment the API key belongs to, which events to subscribe, and the
+        name to issue the signing key under.
+      properties:
+        events:
+          description: Event names to subscribe. Omit the field to subscribe every event this API offers. An explicitly empty
+            list is rejected - a registration that listens to nothing is almost always a mistake.
+          examples:
+          - - DOCUMENT_SIGNED
+            - DOCUMENT_ALL_SIGNATURES_DONE
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+        keyName:
+          description: Name the signing key is issued under. It is what tells apart which integration holds which key, so
+            it must differ from every key this environment still accepts.
+          examples:
+          - ERPNext production
+          maxLength: 128
+          pattern: \S
+          type: string
+        url:
+          description: HTTPS URL that events are POSTed to. Production keys require https on port 443; sandbox keys may also
+            use http or https on localhost, 127.0.0.1 or ::1. Leave it out to keep delivery on the CLI relay instead of an
+            address of your own.
+          examples:
+          - https://your-system.example.com/webhooks/autosignly
+          maxLength: 2048
+          type: string
+      required:
+      - keyName
+      type: object
 info:
   title: Autosignly API
   version: v1
@@ -958,10 +1087,15 @@ paths:
   /api/publics/v1/documents:
     get:
       description: 'Returns a paged list of documents belonging to the company identified by the API key. Optionally filter
-        by one or more statuses, by tag, or by both. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
+        by one or more statuses, by cancellation reason, by tag, or by both. Sort via the `sort` query param, e.g. `sort=creationTimestamp,desc`.
 
         '
       parameters:
+      - description: Filter by cancellation reason, e.g. cancellationReason=REJECTED_BY_SIGNER
+        in: query
+        name: cancellationReason
+        schema:
+          $ref: '#/components/schemas/CancellationReason'
       - in: query
         name: page
         schema:
@@ -1099,6 +1233,8 @@ paths:
 
             - Blank documentName
 
+            - Required billing service is not active, insufficient funds, or company is blocked
+
             - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
 
             '
@@ -1231,6 +1367,8 @@ paths:
 
             - Bean-validation failure on signer fields
 
+            - Required billing service is not active, insufficient funds, or company is blocked
+
             - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
 
             '
@@ -1249,9 +1387,10 @@ paths:
         to documents belonging to the company identified by the API key.
 
 
-        The response carries `fileUrl`, a short-lived link to the document file. The link expires, so fetch the document again
-        to obtain a fresh one rather than storing it. A document that is still being signed can be downloaded as well - it
-        then carries only the signatures collected so far.
+        The response carries `fileUrl`, a short-lived link to the document file, and `fileUrlExpiresAt`, the UTC instant when
+        that link stops working. Fetch the document again afterwards to obtain a fresh one rather than storing the link. Both
+        fields are null when the document has no file yet. A document that is still being signed can be downloaded as well
+        - it then carries only the signatures collected so far.
 
         '
       parameters:
@@ -1538,21 +1677,12 @@ paths:
                 $ref: '#/components/schemas/SendForSigningResponse'
           description: Document sent for signing successfully
         '400':
-          description: 'Invalid request. Possible reasons:
-
-            - Document is not in GENERATED or SIGNERS_ASSIGNED status
-
-            - Status GENERATED: `signers` is empty or missing
-
-            - Status SIGNERS_ASSIGNED: `signers` provided (signers are already set in the document)
-
-            - `signatureType` not provided
-
-            - Bean-validation failure on signer fields (blank name/email, invalid country code, order < 1, etc.)
-
-            - Idempotency-Key does not match the expected format (1-255 chars, `[A-Za-z0-9._:-]`)
-
-            '
+          description: "        Invalid request. Possible reasons:\n        - Document is not in GENERATED or SIGNERS_ASSIGNED\
+            \ status\n        - Status GENERATED: `signers` is empty or missing\n        - Status SIGNERS_ASSIGNED: `signers`\
+            \ provided (signers are already set in the document)\n        - `signatureType` not provided\n- Bean-validation\
+            \ failure on signer fields (blank name/email, invalid country code, order < 1, etc.)\n- Required billing service\
+            \ is not active, insufficient funds, or company is blocked\n- Idempotency-Key does not match the expected format\
+            \ (1-255 chars, `[A-Za-z0-9._:-]`)\n"
         '401':
           description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
         '403':
@@ -2077,6 +2207,125 @@ paths:
       summary: Delete tag
       tags:
       - Public API – tags
+  /api/publics/v1/webhooks:
+    get:
+      description: 'Returns the destination, the subscribed events and every signing key by name and date, so the state of
+        the setup can be checked at any time - including whether registering is still possible, which it is only while this
+        comes back empty.
+
+
+        **No key value is returned.** The response is safe to log or show in a support screen; a key you no longer hold is
+        replaced in the panel, not recovered here.
+
+
+        An environment that has never registered reads back empty rather than 404.
+
+        '
+      parameters:
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookConfiguration'
+          description: Current configuration, without any key value
+        '401':
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
+      summary: Read the webhook configuration
+      tags:
+      - Public API – webhooks
+    post:
+      description: 'Sets the destination and the subscribed events for this environment, issues a signing key under the name
+        you give, and returns that key once. Getting both in one call is the point: a destination without a key receives deliveries
+        nobody can verify.
+
+
+        Omit `url` to keep delivery on the CLI relay. Omit `events` to subscribe every event this API offers; an explicitly
+        empty list is rejected.
+
+
+        **`signingKey` is returned only in this response.** Store it before doing anything else - it cannot be read back,
+        here or anywhere.
+
+
+        **This works once per environment.** An integration that already has a destination or a key is refused with `409`,
+        and its configuration is changed in the panel from then on. API credentials on their own therefore cannot redirect
+        a company''s events - which matters most exactly when those credentials have been stolen.
+
+        '
+      parameters:
+      - description: 'Optional. Recommended format: UUID. Scoped to (companyId, envId). Worth sending here: a retried registration
+          would otherwise issue a second key. See `POST /documents/{documentId}/signings` for the full semantics (conflict
+          cases, TTL).
+
+          '
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+      - description: API key identifying the calling company
+        in: header
+        name: X-API-KEY
+        required: true
+        schema:
+          type: string
+      - description: API secret for the calling company
+        in: header
+        name: X-API-SECRET
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookRegistrationRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookRegistered'
+          description: Registered; the signing key is in this response only
+        '400':
+          description: 'Invalid request. Possible reasons:
+
+            - `keyName` is blank or longer than 128 characters
+
+            - URL is not https, or not on port 443 (production keys only)
+
+            - URL carries userinfo, or has no host
+
+            - `events` is an explicitly empty list, or names an event this API does not publish
+
+            '
+        '401':
+          description: X-API-KEY or X-API-SECRET header is missing, blank, or invalid
+        '409':
+          description: 'Already registered, or an idempotency conflict. Possible reasons:
+
+            - This environment already has a webhook destination or a signing key; change it in the panel
+
+            - Idempotency-Key reused with a different request body, or the original request is still being processed
+
+            '
+      summary: Register a webhook and receive its signing key
+      tags:
+      - Public API – webhooks
 servers:
 - description: Production and sandboxes
   url: https://app.autosignly.eu
@@ -2093,3 +2342,6 @@ tags:
 - description: Company tag list, accessible via API key + secret (X-API-KEY and X-API-SECRET headers). The key decides the
     environment, so a sandbox key never sees production tags.
   name: Public API – tags
+- description: Where this environment's webhooks are delivered and which key signs them. The API key decides the environment,
+    so a sandbox key never touches the production registration.
+  name: Public API – webhooks
