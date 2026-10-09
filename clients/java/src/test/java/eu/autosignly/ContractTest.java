@@ -111,7 +111,11 @@ class ContractTest {
                 org.junit.jupiter.params.provider.Arguments.of(Models.DocumentSignedWebhook.class, "DocumentSignedWebhook"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.DocumentAllSignaturesDoneWebhook.class, "DocumentAllSignaturesDoneWebhook"),
                 org.junit.jupiter.params.provider.Arguments.of(Models.DocumentCancelledWebhook.class, "DocumentCancelledWebhook"),
-                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentRestoredWebhook.class, "DocumentRestoredWebhook"));
+                org.junit.jupiter.params.provider.Arguments.of(Models.DocumentRestoredWebhook.class, "DocumentRestoredWebhook"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.WebhookRegistered.class, "WebhookRegistered"),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        Models.WebhookConfiguration.class, "WebhookConfiguration"),
+                org.junit.jupiter.params.provider.Arguments.of(Models.WebhookKey.class, "WebhookKey"));
     }
 
     @ParameterizedTest(name = "{0} matches {1}")

@@ -25,6 +25,8 @@ import {
   type SigningRequestResult,
   type SmsCountry,
   type Tag,
+  type WebhookConfiguration,
+  type WebhookRegistered,
   partyToPayload,
   signerToPayload,
   toAttachment,
@@ -37,6 +39,8 @@ import {
   toParty,
   toSigningRequestResult,
   toTag,
+  toWebhookConfiguration,
+  toWebhookRegistered,
 } from "./models.js";
 import { VERSION } from "./version.js";
 
@@ -432,6 +436,30 @@ export class AutosignlyClient {
   /** Remove a tag from the pool and from every document carrying it. */
   async deleteTag(tagId: string): Promise<void> {
     await this.#request<null>("DELETE", `/tags/${tagId}`);
+  }
+
+  /**
+   * Register where this environment's webhooks go, and receive the key that signs them.
+   *
+   * `signingKey` is returned only here - store it now, it cannot be read back. Works once
+   * per environment: an integration that already has a destination or a key is refused
+   * with a 409 and is changed in the Autosignly panel from then on.
+   */
+  async registerWebhook(options: {
+    keyName: string;
+    url?: string;
+    events?: string[];
+  }): Promise<WebhookRegistered> {
+    const json: Json = { keyName: options.keyName };
+    if (options.url !== undefined) json.url = options.url;
+    if (options.events !== undefined) json.events = options.events;
+
+    return toWebhookRegistered((await this.#request<Json>("POST", "/webhooks", { json })) ?? {});
+  }
+
+  /** Read the destination, the events and every key by name and date. No key value is returned. */
+  async getWebhookConfiguration(): Promise<WebhookConfiguration> {
+    return toWebhookConfiguration((await this.#request<Json>("GET", "/webhooks")) ?? {});
   }
 
   /**

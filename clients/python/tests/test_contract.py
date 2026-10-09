@@ -40,6 +40,9 @@ from autosignly.models import (
     DocumentAllSignaturesDoneWebhook,
     DocumentCancelledWebhook,
     DocumentRestoredWebhook,
+    WebhookConfiguration,
+    WebhookKey,
+    WebhookRegistered,
 )
 
 SPEC = yaml.safe_load(
@@ -100,6 +103,9 @@ PARSERS = [
     ("DocumentAllSignaturesDoneWebhook", "DocumentAllSignaturesDoneWebhook", DocumentAllSignaturesDoneWebhook.from_payload),
     ("DocumentCancelledWebhook", "DocumentCancelledWebhook", DocumentCancelledWebhook.from_payload),
     ("DocumentRestoredWebhook", "DocumentRestoredWebhook", DocumentRestoredWebhook.from_payload),
+    ("WebhookRegistered", "WebhookRegistered", WebhookRegistered.from_payload),
+    ("WebhookConfiguration", "WebhookConfiguration", WebhookConfiguration.from_payload),
+    ("WebhookKey", "WebhookKey", WebhookKey.from_payload),
 ]
 
 

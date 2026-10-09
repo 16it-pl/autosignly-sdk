@@ -44,6 +44,9 @@ import {
   toDocumentAllSignaturesDoneWebhook,
   toDocumentCancelledWebhook,
   toDocumentRestoredWebhook,
+  toWebhookConfiguration,
+  toWebhookKey,
+  toWebhookRegistered,
 } from "./models.js";
 
 interface SpecParameter {
@@ -108,6 +111,9 @@ const PARSERS: [string, string, (payload: never) => unknown][] = [
   ["toDocumentAllSignaturesDoneWebhook", "DocumentAllSignaturesDoneWebhook", toDocumentAllSignaturesDoneWebhook],
   ["toDocumentCancelledWebhook", "DocumentCancelledWebhook", toDocumentCancelledWebhook],
   ["toDocumentRestoredWebhook", "DocumentRestoredWebhook", toDocumentRestoredWebhook],
+  ["toWebhookRegistered", "WebhookRegistered", toWebhookRegistered],
+  ["toWebhookConfiguration", "WebhookConfiguration", toWebhookConfiguration],
+  ["toWebhookKey", "WebhookKey", toWebhookKey],
 ];
 
 for (const [name, schema, parser] of PARSERS) {

@@ -26,6 +26,8 @@ from .models import (
     SigningRequestResult,
     SmsCountry,
     Tag,
+    WebhookConfiguration,
+    WebhookRegistered,
 )
 
 PRODUCTION_BASE_URL = "https://app.autosignly.eu/api"
@@ -408,6 +410,35 @@ class AutosignlyClient:
     def delete_tag(self, tag_id: str) -> None:
         """Remove a tag from the pool and from every document carrying it."""
         self._request("DELETE", f"/tags/{tag_id}")
+
+    def register_webhook(
+        self,
+        *,
+        key_name: str,
+        url: str | None = None,
+        events: Sequence[str] | None = None,
+    ) -> WebhookRegistered:
+        """Register where this environment's webhooks go, and receive the key that signs them.
+
+        ``signing_key`` is returned only here - store it now, it cannot be read back. Works
+        once per environment: an integration that already has a destination or a key is
+        refused with a 409 and is changed in the Autosignly panel from then on.
+        """
+        body: dict[str, Any] = {"keyName": key_name}
+        if url is not None:
+            body["url"] = url
+        if events is not None:
+            body["events"] = list(events)
+        return WebhookRegistered.from_payload(
+            self._request("POST", "/webhooks", json_body=body) or {}
+        )
+
+    def get_webhook_configuration(self) -> WebhookConfiguration:
+        """Read the destination, the events and every key by name and date.
+
+        No key value is returned.
+        """
+        return WebhookConfiguration.from_payload(self._request("GET", "/webhooks") or {})
 
     def set_document_tags(
         self,
