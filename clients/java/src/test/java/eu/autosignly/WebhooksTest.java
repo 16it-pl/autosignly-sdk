@@ -2,9 +2,14 @@ package eu.autosignly;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HexFormat;
 
@@ -97,5 +102,50 @@ class WebhooksTest {
         assertThatThrownBy(() -> Webhooks.verify(BODY, "v1=deadbeef", SECRET, timestamp))
                 .isInstanceOf(AutosignlyException.InvalidSignature.class);
         Webhooks.verify(BODY, "v1=" + sign(timestamp, SECRET, BODY), SECRET, timestamp);
+    }
+
+    @Test
+    void sharedVectorsMatchComputeSignature() throws Exception {
+        for (JsonNode vector : vectors()) {
+            assertThat(Webhooks.computeSignature(
+                    vector.get("payload").asText().getBytes(StandardCharsets.UTF_8),
+                    vector.get("key").asText(),
+                    vector.get("timestamp").asText()))
+                    .isEqualTo(vector.get("signature").asText());
+        }
+    }
+
+    @Test
+    void conformanceAcceptsAMatchingSignature() throws Exception {
+        JsonNode primary = vectors().get(0);
+        byte[] body = primary.get("payload").asText().getBytes(StandardCharsets.UTF_8);
+        String header = "v1=" + primary.get("signature").asText();
+        assertThat(Webhooks.isValid(body, header, primary.get("key").asText(), primary.get("timestamp").asText(), 0))
+                .isTrue();
+    }
+
+    @Test
+    void conformanceRejectsATamperedBody() throws Exception {
+        JsonNode primary = vectors().get(0);
+        byte[] tampered = primary.get("payload").asText()
+                .replace("DOCUMENT_SIGNED", "DOCUMENT_SIGNEE")
+                .getBytes(StandardCharsets.UTF_8);
+        String header = "v1=" + primary.get("signature").asText();
+        assertThat(Webhooks.isValid(tampered, header, primary.get("key").asText(), primary.get("timestamp").asText(), 0))
+                .isFalse();
+    }
+
+    @Test
+    void conformanceRejectsAnExpiredTimestamp() throws Exception {
+        JsonNode primary = vectors().get(0);
+        byte[] body = primary.get("payload").asText().getBytes(StandardCharsets.UTF_8);
+        String header = "v1=" + primary.get("signature").asText();
+        assertThat(Webhooks.isValid(body, header, primary.get("key").asText(), primary.get("timestamp").asText()))
+                .isFalse();
+    }
+
+    private static JsonNode vectors() throws Exception {
+        Path path = Path.of("..", "..", "spec", "webhook-signature-vectors.json").toAbsolutePath().normalize();
+        return new ObjectMapper().readTree(Files.readString(path)).get("vectors");
     }
 }

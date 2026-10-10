@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { InvalidSignatureError } from "./errors.js";
@@ -7,6 +9,10 @@ import { computeSignature, isValid, verify } from "./webhooks.js";
 
 const SECRET = "wh_secret";
 const BODY = Buffer.from('{"eventType":"DOCUMENT_SIGNED"}', "utf8");
+const VECTORS = JSON.parse(
+  readFileSync(join(import.meta.dirname, "..", "..", "..", "spec", "webhook-signature-vectors.json"), "utf8"),
+).vectors as { description: string; timestamp: string; payload: string; key: string; signature: string }[];
+const PRIMARY = VECTORS[0]!;
 
 const now = () => String(Math.floor(Date.now() / 1000));
 const sign = (timestamp: string, secret = SECRET, body = BODY) =>
@@ -71,4 +77,29 @@ test("accepts the body as a string as well as bytes", () => {
   const timestamp = now();
   const text = BODY.toString("utf8");
   assert.equal(isValid(text, `v1=${sign(timestamp)}`, SECRET, timestamp), true);
+});
+
+for (const vector of VECTORS) {
+  test(`shared vector matches computeSignature: ${vector.description}`, () => {
+    assert.equal(computeSignature(vector.payload, vector.key, vector.timestamp), vector.signature);
+  });
+}
+
+test("conformance accepts a matching signature", () => {
+  assert.equal(
+    isValid(PRIMARY.payload, `v1=${PRIMARY.signature}`, PRIMARY.key, PRIMARY.timestamp, { tolerance: 0 }),
+    true,
+  );
+});
+
+test("conformance rejects a tampered body", () => {
+  const tampered = PRIMARY.payload.replace("DOCUMENT_SIGNED", "DOCUMENT_SIGNEE");
+  assert.equal(
+    isValid(tampered, `v1=${PRIMARY.signature}`, PRIMARY.key, PRIMARY.timestamp, { tolerance: 0 }),
+    false,
+  );
+});
+
+test("conformance rejects an expired timestamp", () => {
+  assert.equal(isValid(PRIMARY.payload, `v1=${PRIMARY.signature}`, PRIMARY.key, PRIMARY.timestamp), false);
 });

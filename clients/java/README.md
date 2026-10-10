@@ -187,7 +187,9 @@ cannot order by them.
 ## Webhooks
 
 Autosignly signs every delivery with `X-Webhook-Signature` and
-`X-Webhook-Timestamp`. Verify it before trusting the body:
+`X-Webhook-Timestamp`. The digest is
+`hex(HMAC-SHA256(webhook_key, timestamp + "." + raw_body))`, sent as `v1=<hex>`.
+Verify it before trusting the body:
 
 ```java
 @PostMapping("/webhooks/autosignly")
@@ -220,12 +222,17 @@ swap your stored secret without dropping deliveries.
 
 ### What a delivery carries
 
-Two event types, both naming the document in `documentId`:
+Four event types, all naming the document in `documentId`:
 
 | `eventType` | when | also carries |
 |---|---|---|
 | `DOCUMENT_SIGNED` | one signer has signed | `signerId`, and `email` of the person who signed |
 | `DOCUMENT_ALL_SIGNATURES_DONE` | the document is finished, closing seal included | nothing else |
+| `DOCUMENT_CANCELLED` | signing ended without a complete set of signatures | `cancellationReason`, `signerId`, `cancelledAt` |
+| `DOCUMENT_RESTORED` | a cancelled document was restored | `restoredAt` |
+
+`cancellationReason` is `REJECTED_BY_SIGNER`, `EXPIRED` or `CANCELLED_BY_SENDER`.
+`signerId` is null when the sender cancelled the process.
 
 `DOCUMENT_ALL_SIGNATURES_DONE` arrives after finalization, not when the last
 signature lands, so the file behind `fileUrl` is the final one by the time you

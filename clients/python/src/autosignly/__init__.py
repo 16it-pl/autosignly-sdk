@@ -13,6 +13,7 @@
 """
 
 from ._version import __version__
+from . import webhooks
 from .client import AutosignlyClient, PRODUCTION_BASE_URL
 from .errors import (
     AutosignlyError,
@@ -54,6 +55,16 @@ from .models import (
     WebhookKey,
     WebhookRegistered,
     VerificationMethod,
+    CancellationReason,
+    WebhookEventType,
+    DocumentSignedPayload,
+    DocumentAllSignaturesDonePayload,
+    DocumentCancelledPayload,
+    DocumentRestoredPayload,
+    DocumentSignedWebhook,
+    DocumentAllSignaturesDoneWebhook,
+    DocumentCancelledWebhook,
+    DocumentRestoredWebhook,
 )
 
 __all__ = [
@@ -96,5 +107,15 @@ __all__ = [
     "WebhookKey",
     "WebhookRegistered",
     "VerificationMethod",
+    "CancellationReason",
+    "WebhookEventType",
+    "DocumentSignedPayload",
+    "DocumentAllSignaturesDonePayload",
+    "DocumentCancelledPayload",
+    "DocumentRestoredPayload",
+    "DocumentSignedWebhook",
+    "DocumentAllSignaturesDoneWebhook",
+    "DocumentCancelledWebhook",
+    "DocumentRestoredWebhook",
     "webhooks",
 ]

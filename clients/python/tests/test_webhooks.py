@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,10 @@ from autosignly import webhooks
 
 SECRET = "wh_secret"
 PAYLOAD = b'{"eventId":"1","eventType":"document.signed"}'
+VECTORS = json.loads(
+    (Path(__file__).resolve().parents[3] / "spec" / "webhook-signature-vectors.json").read_text()
+)["vectors"]
+PRIMARY = VECTORS[0]
 
 
 def now():
@@ -72,3 +78,29 @@ def test_rejects_missing_header_or_timestamp():
 def test_verify_raises_on_mismatch():
     with pytest.raises(InvalidSignatureError):
         webhooks.verify(PAYLOAD, "v1=deadbeef", SECRET, now())
+
+
+@pytest.mark.parametrize("vector", VECTORS, ids=lambda v: v["description"])
+def test_shared_vectors_match_compute_signature(vector):
+    assert (
+        webhooks.compute_signature(vector["payload"].encode(), vector["key"], vector["timestamp"])
+        == vector["signature"]
+    )
+
+
+def test_conformance_accepts_a_matching_signature():
+    body = PRIMARY["payload"].encode()
+    header = "v1=" + PRIMARY["signature"]
+    assert webhooks.is_valid(body, header, PRIMARY["key"], PRIMARY["timestamp"], tolerance=0) is True
+
+
+def test_conformance_rejects_a_tampered_body():
+    tampered = PRIMARY["payload"].replace("DOCUMENT_SIGNED", "DOCUMENT_SIGNEE").encode()
+    header = "v1=" + PRIMARY["signature"]
+    assert webhooks.is_valid(tampered, header, PRIMARY["key"], PRIMARY["timestamp"], tolerance=0) is False
+
+
+def test_conformance_rejects_an_expired_timestamp():
+    body = PRIMARY["payload"].encode()
+    header = "v1=" + PRIMARY["signature"]
+    assert webhooks.is_valid(body, header, PRIMARY["key"], PRIMARY["timestamp"]) is False
