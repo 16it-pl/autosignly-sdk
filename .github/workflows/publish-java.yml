@@ -123,9 +123,32 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
+      # The runner's Maven decides what lands in the bundle. 3.10.0, which the
+      # image started shipping in October 2026, stages through a local-repository
+      # install and leaves its bookkeeping inside the staging tree:
+      #
+      #     eu/autosignly/autosignly-client/maven-metadata-local.xml
+      #     eu/autosignly/autosignly-client/<version>/_remote.repositories
+      #
+      # The first sits above the version directory, so the Portal reads it as a
+      # component with no .pom and rejects the deployment. 1.0.4 and 1.0.5 both
+      # died that way. Every 3.9.x stages the component and nothing else, so the
+      # version is pinned here instead of being whatever the image ships this
+      # month. Before raising it, publish a tag with publish-java-retry.yml in
+      # dry-run mode: it lists the bundle and refuses anything that does not
+      # belong to the component.
+      - name: Pin Maven
+        run: |
+          set -euo pipefail
+          version=3.9.16
+          curl -fsSL "https://archive.apache.org/dist/maven/maven-3/$version/binaries/apache-maven-$version-bin.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-$version/bin" >> "$GITHUB_PATH"
+
       - name: Refuse to publish a snapshot
         working-directory: clients/java
         run: |
+          mvn -v | head -1
           version=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
           case "$version" in
             *-SNAPSHOT) echo "Refusing to publish $version to Maven Central" >&2; exit 1 ;;
