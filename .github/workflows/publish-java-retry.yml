@@ -1,0 +1,163 @@
+name: publish-java-retry
+
+# Publishes a Java tag that already exists, without cutting a new version.
+#
+# publish-java.yml always promotes: it turns the current -SNAPSHOT into a
+# release, tags it and opens the next one. That is the right shape for a
+# release and the wrong shape for a retry - a second run would cut the version
+# after the one that failed, leaving the failed tag without an artifact on
+# Maven Central forever.
+#
+# It also builds the bundle itself instead of letting
+# central-publishing-maven-plugin do it. On this runner the plugin stages
+# through a local-repository install, and the local repository's own
+# bookkeeping ends up inside the bundle:
+#
+#     eu/autosignly/autosignly-client/maven-metadata-local.xml
+#     eu/autosignly/autosignly-client/1.0.5/_remote.repositories
+#
+# The first one sits one level above the version directory, so the Portal reads
+# it as a second component that has no .pom and rejects the whole deployment
+# with "Bundle has content that does NOT have a .pom file". The same build on
+# Maven 3.9.6 through 4.0.0-rc-7 produces neither file, so this is specific to
+# the runner rather than to the project.
+#
+# What goes into the bundle here is therefore listed explicitly: the four
+# artifacts, their signatures, and checksums for each. Nothing else can get in.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, for example java/v1.0.5
+        required: true
+        type: string
+      dryRun:
+        description: Build the bundle and keep it, without sending it to Central
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: maven-central
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+          # Imports the signing key; the Portal token is used by curl below,
+          # so no server entry is needed in settings.xml.
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Read the version
+        id: version
+        working-directory: clients/java
+        run: |
+          set -euo pipefail
+          mvn -v | head -1
+          version=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
+          case "$version" in
+            *-SNAPSHOT) echo "Refusing to publish $version to Maven Central" >&2; exit 1 ;;
+          esac
+          echo "Publishing $version from ${{ inputs.tag }}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and sign
+        working-directory: clients/java
+        run: mvn -B -ntp -Prelease -DskipTests verify
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Assemble the bundle
+        working-directory: clients/java
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          artifact=autosignly-client
+          dir="target/central-bundle/eu/autosignly/$artifact/$VERSION"
+
+          rm -rf target/central-bundle target/central-bundle.zip
+          mkdir -p "$dir"
+
+          cp pom.xml "$dir/$artifact-$VERSION.pom"
+          for suffix in "" "-sources" "-javadoc"; do
+            cp "target/$artifact-$VERSION$suffix.jar" "$dir/"
+          done
+          for file in "$artifact-$VERSION.pom" "$artifact-$VERSION.jar" \
+                      "$artifact-$VERSION-sources.jar" "$artifact-$VERSION-javadoc.jar"; do
+            cp "target/$file.asc" "$dir/$file.asc"
+          done
+
+          ( cd "$dir"
+            for file in *; do
+              md5sum "$file" | cut -d' ' -f1 > "$file.md5"
+              sha1sum "$file" | cut -d' ' -f1 > "$file.sha1"
+              sha256sum "$file" | cut -d' ' -f1 > "$file.sha256"
+              sha512sum "$file" | cut -d' ' -f1 > "$file.sha512"
+            done )
+
+          # -D: no directory entries, matching what the plugin produces.
+          ( cd target/central-bundle && zip -qrD ../central-bundle.zip . )
+
+          echo "== bundle entries =="
+          unzip -l target/central-bundle.zip
+          # A file outside the version directory is what Central chokes on, so
+          # refuse to upload one rather than find out from a failed deployment.
+          if unzip -Z1 target/central-bundle.zip | grep -v "^eu/autosignly/$artifact/$VERSION/"; then
+            echo "The lines above do not belong to the component." >&2
+            exit 1
+          fi
+
+      - name: Keep the bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-bundle
+          path: clients/java/target/central-bundle.zip
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload to Central and wait for it to publish
+        if: ${{ !inputs.dryRun }}
+        working-directory: clients/java
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          auth="Authorization: Bearer $(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
+
+          id=$(curl -sS --fail-with-body -X POST \
+            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC&name=autosignly-client-$VERSION" \
+            -H "$auth" -F "bundle=@target/central-bundle.zip")
+          echo "Deployment $id"
+
+          # AUTOMATIC publishes on its own once validation passes; this only
+          # decides whether the job goes green, so it must not hang forever.
+          for _ in $(seq 1 60); do
+            status=$(curl -sS --fail-with-body -X POST \
+              "https://central.sonatype.com/api/v1/publisher/status?id=$id" -H "$auth")
+            state=$(echo "$status" | grep -o '"deploymentState"[: ]*"[A-Z_]*"' | grep -o '[A-Z_]*"$' | tr -d '"')
+            echo "state: ${state:-unknown}"
+            case "$state" in
+              PUBLISHED) echo "$VERSION is on Maven Central"; exit 0 ;;
+              FAILED) echo "$status"; exit 1 ;;
+            esac
+            sleep 20
+          done
+
+          echo "Still not published after 20 minutes; check the deployment in the Portal." >&2
+          echo "https://central.sonatype.com/publishing/deployments"
+          exit 1
