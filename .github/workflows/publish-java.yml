@@ -140,3 +140,30 @@ jobs:
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      # Central rejects a bundle with a message that names a path but not a
+      # reason, and the zip it validated is otherwise gone when the job ends.
+      # 1.0.4 failed twice with "Bundle has content that does NOT have a .pom
+      # file" over a bundle that does contain the pom, so keep the evidence.
+      - name: Show what was in the bundle
+        if: always()
+        working-directory: clients/java
+        run: |
+          bundle=target/central-publishing/central-bundle.zip
+          if [ ! -f "$bundle" ]; then
+            echo "No bundle was produced."
+            exit 0
+          fi
+          echo "== entries =="
+          unzip -l "$bundle"
+          echo "== sha256 of the bundle =="
+          sha256sum "$bundle"
+
+      - name: Keep the bundle when Central refuses it
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-bundle
+          path: clients/java/target/central-publishing/central-bundle.zip
+          if-no-files-found: warn
+          retention-days: 14
